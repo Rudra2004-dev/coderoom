@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth";
 import roomRoutes from "./routes/rooms";
+import http from "http";
+import { attachYjs } from "./yjs";
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173" }));
@@ -14,8 +16,9 @@ app.use("/rooms", roomRoutes)
 app.get("/health", (_req, res) => res.json({ ok: true}));
 
 
-app.listen(process.env.PORT || 4000, () => 
-    console.log("API running on port", process.env.PORT || 4000)
-);
+const server = http.createServer(app);
+attachYjs(server);
 
+const port = Number(process.env.PORT) || 4000;
+server.listen(port, () => console.log("API + Yjs running on port", port));
 

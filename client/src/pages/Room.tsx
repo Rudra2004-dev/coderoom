@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../api";
+import CodeEditor from "../components/CodeEditor";
 
 interface RoomData {
   slug: string;
@@ -43,7 +44,7 @@ export default function Room() {
       <p>Interviewer: {room.interviewer.name}</p>
       <p>Candidate: {room.candidate ? room.candidate.name : "Waiting for candidate..."}</p>
       <div className="mt-6 p-10 border border-dashed border-gray-700 rounded text-gray-500">
-        Editor goes here (Day 4)
+        <CodeEditor slug={room.slug} />
       </div>
     </div>
   );

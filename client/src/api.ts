@@ -1,4 +1,5 @@
 const BASE = "http://localhost:4000";
+export const WS_BASE = "ws://localhost:4000/yjs";
 
 export async function api(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token");
