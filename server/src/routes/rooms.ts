@@ -2,6 +2,8 @@ import { Router } from "express";
 import crypto from "crypto";
 import { prisma } from "../prisma";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
+import { z } from "zod";
+import { runQueue } from "../queue";
 
 const router = Router();
 router.use(requireAuth);
@@ -37,6 +39,29 @@ router.post("/:slug/join", requireRole("candidate"), async (req: AuthedRequest, 
     data: { candidateId: req.user!.id, status: "live" },
   });
   res.json(updated);
+});
+
+
+const runSchema = z.object({
+  language: z.enum(["python", "javascript", "cpp"]), // allowlist
+  code: z.string().max(50_000),
+  stdin: z.string().max(10_000).default(""),
+});
+
+router.post("/:slug/run", async (req: AuthedRequest, res) => {
+  const slug = String(req.params.slug);
+  const parsed = runSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return res.status(400).json({ error: `${first.path.join(".")}: ${first.message}` });
+  }
+
+  const room = await prisma.room.findUnique({ where: { slug } });
+  if (!room || (room.interviewerId !== req.user!.id && room.candidateId !== req.user!.id))
+    return res.status(403).json({ error: "Not a member of this room" });
+
+  const job = await runQueue.add("run", { ...parsed.data, userId: req.user!.id, roomSlug: slug });
+  res.status(202).json({ jobId: job.id });
 });
 
 export default router;

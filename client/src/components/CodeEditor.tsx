@@ -7,12 +7,12 @@ import { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
 import { WS_BASE, getUser } from "../api";
 
-export type Language = "python" | "javascript" | "cpp";
+export type Language = "python" | "java" | "cpp";
 
 const STARTERS: Record<Language, string> = {
-  python: `import sys\n\ndata = sys.stdin.read()\n\ndef solve():\n    pass\n\nsolve()\n`,
-  javascript: `const data = require("fs").readFileSync(0, "utf8");\n\nfunction solve() {\n}\n\nsolve();\n`,
   cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n`,
+  java: `import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        solve(sc);\n    }\n    static void solve(Scanner sc) {\n    }\n}\n`,
+  python: `import sys\n\ndata = sys.stdin.read()\n\ndef solve():\n    pass\n\nsolve()\n`,
 };
 
 const COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -141,9 +141,9 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
           onChange={(e) => changeLanguage(e.target.value as Language)}
           className="ml-auto bg-gray-800 border border-gray-700 text-white rounded px-2 py-1"
         >
-          <option value="python">Python</option>
-          <option value="javascript">JavaScript</option>
           <option value="cpp">C++</option>
+          <option value="java">Java</option>
+          <option value="python">Python</option>
         </select>
 
         <button

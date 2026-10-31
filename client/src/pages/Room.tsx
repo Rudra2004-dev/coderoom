@@ -14,6 +14,32 @@ interface RoomData {
   candidate: { id: string; name: string } | null;
 }
 
+
+interface RunResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  truncated: boolean;
+  compileError: boolean;
+  timeMs: number;
+}
+
+function formatResult(r: RunResult): RunOutput {
+  const parts: string[] = [];
+  if (r.compileError) parts.push("Compilation failed:");
+  if (!r.stdout && !r.stderr && !r.timedOut && !r.compileError && r.exitCode === 0)
+  parts.push("(program finished with no output)");
+  if (r.stdout) parts.push(r.stdout);
+  if (r.stderr) parts.push(r.stderr);
+  if (r.timedOut) parts.push("⏱ Time limit exceeded");
+  else if (r.truncated) parts.push("… output truncated (limit reached)");
+  else if (!r.compileError && r.exitCode !== 0) parts.push(`Exited with code ${r.exitCode}`);
+  parts.push(`(${r.timeMs} ms)`);
+  const isError = r.timedOut || r.compileError || r.exitCode !== 0;
+  return { text: parts.join("\n"), isError };
+}
+
 export default function Room() {
   const { slug } = useParams();
   const [room, setRoom] = useState<RoomData | null>(null);
@@ -21,6 +47,7 @@ export default function Room() {
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState<RunOutput | null>(null);
   const [copied, setCopied] = useState(false);
+  const [stdin, setStdin] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -41,15 +68,27 @@ export default function Room() {
   }, [slug]);
 
   // Placeholder: Day 6 replaces this with a real call to the sandbox
-  async function handleRun(code: string, language: Language) {
-    setRunning(true);
-    await new Promise((r) => setTimeout(r, 600));
-    setOutput({
-      text: `[placeholder] The execution engine arrives on Day 6.\nWould run ${code.length} characters of ${language}.`,
-      isError: false,
+ async function handleRun(code: string, language: Language) {
+  setRunning(true);
+  setOutput(null);
+  try {
+    const { jobId } = await api(`/rooms/${slug}/run`, {
+      method: "POST",
+      body: JSON.stringify({ language, code, stdin }),
     });
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const job = await api(`/jobs/${jobId}`);
+      if (job.state === "completed") return setOutput(formatResult(job.result));
+      if (job.state === "failed") return setOutput({ text: job.error, isError: true });
+    }
+    setOutput({ text: "No response from the worker. Is it running?", isError: true });
+  } catch (err) {
+    setOutput({ text: (err as Error).message, isError: true });
+  } finally {
     setRunning(false);
   }
+}
 
   function copyCode() {
     navigator.clipboard.writeText(room!.slug);
@@ -77,7 +116,7 @@ export default function Room() {
       <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] gap-3 p-3">
         <QuestionPanel />
         <CodeEditor slug={room.slug} running={running} onRun={handleRun} />
-        <OutputPanel output={output} running={running} />
+        <OutputPanel output={output} running={running} stdin={stdin} onStdinChange={setStdin} />
       </div>
     </div>
   );
