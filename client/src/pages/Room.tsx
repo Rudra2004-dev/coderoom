@@ -20,23 +20,26 @@ interface RunResult {
   stderr: string;
   exitCode: number | null;
   timedOut: boolean;
+  compileTimedOut: boolean;
   truncated: boolean;
   compileError: boolean;
+  memoryExceeded: boolean;
   timeMs: number;
 }
 
 function formatResult(r: RunResult): RunOutput {
   const parts: string[] = [];
   if (r.compileError) parts.push("Compilation failed:");
-  if (!r.stdout && !r.stderr && !r.timedOut && !r.compileError && r.exitCode === 0)
-  parts.push("(program finished with no output)");
   if (r.stdout) parts.push(r.stdout);
   if (r.stderr) parts.push(r.stderr);
-  if (r.timedOut) parts.push("⏱ Time limit exceeded");
+  if (r.compileTimedOut) parts.push("⏱ Compilation timed out");
+  else if (r.timedOut) parts.push("⏱ Time limit exceeded");
+  else if (r.memoryExceeded) parts.push("💥 Memory limit exceeded");
   else if (r.truncated) parts.push("… output truncated (limit reached)");
   else if (!r.compileError && r.exitCode !== 0) parts.push(`Exited with code ${r.exitCode}`);
+  else if (!r.stdout && !r.stderr) parts.push("(program finished with no output)");
   parts.push(`(${r.timeMs} ms)`);
-  const isError = r.timedOut || r.compileError || r.exitCode !== 0;
+  const isError = r.timedOut || r.memoryExceeded || r.compileError || r.exitCode !== 0;
   return { text: parts.join("\n"), isError };
 }
 

@@ -4,9 +4,20 @@ import { prisma } from "../prisma";
 import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { z } from "zod";
 import { runQueue } from "../queue";
+import rateLimit from "express-rate-limit";
 
 const router = Router();
 router.use(requireAuth);
+
+
+const runLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 15, // 15 runs per user per minute
+  keyGenerator: (req) => (req as AuthedRequest).user!.id,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many runs. Wait a minute and try again." },
+});
 
 router.post("/", requireRole("interviewer"), async (req: AuthedRequest, res) => {
   const room = await prisma.room.create({
@@ -43,12 +54,12 @@ router.post("/:slug/join", requireRole("candidate"), async (req: AuthedRequest, 
 
 
 const runSchema = z.object({
-  language: z.enum(["python", "javascript", "cpp"]), // allowlist
+  language: z.enum(["python", "cpp", "java"]), // allowlist
   code: z.string().max(50_000),
   stdin: z.string().max(10_000).default(""),
 });
 
-router.post("/:slug/run", async (req: AuthedRequest, res) => {
+router.post("/:slug/run", runLimiter, async (req: AuthedRequest, res) => {
   const slug = String(req.params.slug);
   const parsed = runSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -59,6 +70,9 @@ router.post("/:slug/run", async (req: AuthedRequest, res) => {
   const room = await prisma.room.findUnique({ where: { slug } });
   if (!room || (room.interviewerId !== req.user!.id && room.candidateId !== req.user!.id))
     return res.status(403).json({ error: "Not a member of this room" });
+
+  if ((await runQueue.getWaitingCount()) >= 50)
+    return res.status(503).json({ error: "Server is busy. Try again in a few seconds." });
 
   const job = await runQueue.add("run", { ...parsed.data, userId: req.user!.id, roomSlug: slug });
   res.status(202).json({ jobId: job.id });
