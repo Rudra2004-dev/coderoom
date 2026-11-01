@@ -2,17 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import type { Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import * as Y from "yjs";
-import { WebsocketProvider } from "y-websocket";
+import type * as Y from "yjs";
+import type { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
-import { WS_BASE, getUser } from "../api";
+import { getUser } from "../api";
+import type { ConnStatus } from "../hooks/useRoomDoc";
 
-export type Language = "python" | "java" | "cpp";
+export type Language = "python" | "cpp" | "java";
 
 const STARTERS: Record<Language, string> = {
-  cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n`,
-  java: `import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws IOException {\n        Scanner sc = new Scanner(System.in);\n        solve(sc);\n    }\n    static void solve(Scanner sc) {\n    }\n}\n`,
   python: `import sys\n\ndata = sys.stdin.read()\n\ndef solve():\n    pass\n\nsolve()\n`,
+  cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n\n    return 0;\n}\n`,
+  java: `import java.util.*;\n\n// The public class must be named Main\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n\n    }\n}\n`,
 };
 
 const COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"];
@@ -20,14 +21,15 @@ const colorFor = (id: string) =>
   COLORS[[...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % COLORS.length];
 
 interface Props {
-  slug: string;
-  running: boolean;
+  doc: Y.Doc | null;
+  provider: WebsocketProvider | null;
+  status: ConnStatus;
+  busy: boolean;
   onRun: (code: string, language: Language) => void;
 }
 
-export default function CodeEditor({ slug, running, onRun }: Props) {
+export default function CodeEditor({ doc, provider, status, busy, onRun }: Props) {
   const [monacoEditor, setMonacoEditor] = useState<editor.IStandaloneCodeEditor | null>(null);
-  const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [language, setLanguage] = useState<Language>("python");
 
   const monacoRef = useRef<Monaco | null>(null);
@@ -35,14 +37,11 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
   const metaRef = useRef<Y.Map<string> | null>(null);
 
   useEffect(() => {
-    if (!monacoEditor) return;
+    if (!monacoEditor || !doc || !provider) return;
     const model = monacoEditor.getModel();
     const user = getUser();
-    const token = localStorage.getItem("token");
-    if (!model || !user || !token) return;
+    if (!model || !user) return;
 
-    const doc = new Y.Doc();
-    const provider = new WebsocketProvider(WS_BASE, slug, doc, { params: { token } });
     const yText = doc.getText("code");
     const meta = doc.getMap<string>("meta");
     yTextRef.current = yText;
@@ -55,11 +54,6 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
       color: colorFor(user.id),
     });
 
-    provider.on("status", ({ status }: { status: "connecting" | "connected" | "disconnected" }) =>
-      setStatus(status)
-    );
-
-    // Keep React state and Monaco's syntax highlighting in step with the shared language
     const applyLanguage = () => {
       const lang = (meta.get("language") as Language) ?? "python";
       setLanguage(lang);
@@ -67,7 +61,8 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
     };
     meta.observe(applyLanguage);
 
-    provider.on("sync", (synced: boolean) => {
+    // The connection may already be synced by the time the editor mounts
+    const onSync = (synced: boolean) => {
       if (!synced) return;
       if (user.role === "interviewer") {
         doc.transact(() => {
@@ -76,9 +71,10 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
         });
       }
       applyLanguage();
-    });
+    };
+    if (provider.synced) onSync(true);
+    provider.on("sync", onSync);
 
-    // Remote cursor labels
     const styleEl = document.createElement("style");
     document.head.appendChild(styleEl);
     const renderCursorStyles = () => {
@@ -101,16 +97,15 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
     provider.awareness.on("change", renderCursorStyles);
 
     return () => {
+      provider.off("sync", onSync);
       meta.unobserve(applyLanguage);
       provider.awareness.off("change", renderCursorStyles);
       styleEl.remove();
       binding.destroy();
-      provider.destroy();
-      doc.destroy();
       yTextRef.current = null;
       metaRef.current = null;
     };
-  }, [monacoEditor, slug]);
+  }, [monacoEditor, doc, provider]);
 
   function changeLanguage(next: Language) {
     const meta = metaRef.current;
@@ -141,17 +136,17 @@ export default function CodeEditor({ slug, running, onRun }: Props) {
           onChange={(e) => changeLanguage(e.target.value as Language)}
           className="ml-auto bg-gray-800 border border-gray-700 text-white rounded px-2 py-1"
         >
+          <option value="python">Python</option>
           <option value="cpp">C++</option>
           <option value="java">Java</option>
-          <option value="python">Python</option>
         </select>
 
         <button
-          disabled={running || status !== "connected"}
+          disabled={busy || status !== "connected"}
           onClick={() => onRun(yTextRef.current?.toString() ?? "", language)}
           className="bg-green-600 hover:bg-green-500 text-white rounded px-3 py-1 disabled:opacity-50"
         >
-          {running ? "Running..." : "▶ Run"}
+          {busy ? "Running..." : "▶ Run"}
         </button>
       </div>
 

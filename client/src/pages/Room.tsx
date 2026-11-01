@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "../api";
+import { api, getUser } from "../api";
 import CodeEditor from "../components/CodeEditor";
 import type { Language } from "../components/CodeEditor";
 import QuestionPanel from "../components/QuestionPanel";
 import OutputPanel from "../components/OutputPanel";
 import type { RunOutput } from "../components/OutputPanel";
+import { useRoomDoc } from "../hooks/useRoomDoc";
 
 interface RoomData {
   slug: string;
@@ -13,7 +14,6 @@ interface RoomData {
   interviewer: { id: string; name: string };
   candidate: { id: string; name: string } | null;
 }
-
 
 interface RunResult {
   stdout: string;
@@ -44,13 +44,24 @@ function formatResult(r: RunResult): RunOutput {
 }
 
 export default function Room() {
-  const { slug } = useParams();
+  const { slug = "" } = useParams();
+  const { doc, provider, status } = useRoomDoc(slug);
+
   const [room, setRoom] = useState<RoomData | null>(null);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
-  const [output, setOutput] = useState<RunOutput | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Shared state, mirrored from the Yjs document
   const [stdin, setStdin] = useState("");
+  const [output, setOutput] = useState<RunOutput | null>(null);
+  const [runInfo, setRunInfo] = useState<{ name: string; at: number } | null>(null);
+  const [now, setNow] = useState(0);
+
+useEffect(() => {
+  const t = setInterval(() => setNow(Date.now()), 5000);
+  return () => clearInterval(t);
+}, []);
 
   useEffect(() => {
     let active = true;
@@ -70,28 +81,82 @@ export default function Room() {
     };
   }, [slug]);
 
-  // Placeholder: Day 6 replaces this with a real call to the sandbox
- async function handleRun(code: string, language: Language) {
-  setRunning(true);
-  setOutput(null);
-  try {
-    const { jobId } = await api(`/rooms/${slug}/run`, {
-      method: "POST",
-      body: JSON.stringify({ language, code, stdin }),
-    });
-    for (let i = 0; i < 60; i++) {
-      await new Promise((r) => setTimeout(r, 500));
-      const job = await api(`/jobs/${jobId}`);
-      if (job.state === "completed") return setOutput(formatResult(job.result));
-      if (job.state === "failed") return setOutput({ text: job.error, isError: true });
+  useEffect(() => {
+    if (!doc) return;
+    const yStdin = doc.getText("stdin");
+    const runMap = doc.getMap<string>("run");
+
+    const readStdin = () => setStdin(yStdin.toString());
+    const readRun = () => {
+      try {
+        const r = runMap.get("result");
+        setOutput(r ? JSON.parse(r) : null);
+        const s = runMap.get("running");
+        setRunInfo(s ? JSON.parse(s) : null);
+      } catch {
+        /* ignore malformed data */
+      }
+    };
+
+    yStdin.observe(readStdin);
+    runMap.observe(readRun);
+    readStdin();
+    readRun();
+    return () => {
+      yStdin.unobserve(readStdin);
+      runMap.unobserve(readRun);
+    };
+  }, [doc]);
+
+  // Turn "the textarea now says X" into a minimal edit on the shared text
+  function handleStdinChange(next: string) {
+    if (!doc) return;
+    const y = doc.getText("stdin");
+    const prev = y.toString();
+    if (prev === next) return;
+    let start = 0;
+    while (start < prev.length && start < next.length && prev[start] === next[start]) start++;
+    let endPrev = prev.length;
+    let endNext = next.length;
+    while (endPrev > start && endNext > start && prev[endPrev - 1] === next[endNext - 1]) {
+      endPrev--;
+      endNext--;
     }
-    setOutput({ text: "No response from the worker. Is it running?", isError: true });
-  } catch (err) {
-    setOutput({ text: (err as Error).message, isError: true });
-  } finally {
-    setRunning(false);
+    doc.transact(() => {
+      if (endPrev > start) y.delete(start, endPrev - start);
+      if (endNext > start) y.insert(start, next.slice(start, endNext));
+    });
   }
-}
+
+  function publish(out: RunOutput) {
+    const me = getUser();
+    doc?.getMap<string>("run").set("result", JSON.stringify({ ...out, by: me?.name ?? "someone", at: Date.now() }));
+  }
+
+  async function handleRun(code: string, language: Language) {
+    const me = getUser();
+    const runMap = doc?.getMap<string>("run");
+    setRunning(true);
+    runMap?.set("running", JSON.stringify({ name: me?.name ?? "someone", at: Date.now() }));
+    try {
+      const { jobId } = await api(`/rooms/${slug}/run`, {
+        method: "POST",
+        body: JSON.stringify({ language, code, stdin }),
+      });
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        const job = await api(`/jobs/${jobId}`);
+        if (job.state === "completed") return publish(formatResult(job.result));
+        if (job.state === "failed") return publish({ text: job.error, isError: true });
+      }
+      publish({ text: "No response from the worker. Is it running?", isError: true });
+    } catch (err) {
+      publish({ text: (err as Error).message, isError: true });
+    } finally {
+      runMap?.delete("running");
+      setRunning(false);
+    }
+  }
 
   function copyCode() {
     navigator.clipboard.writeText(room!.slug);
@@ -101,6 +166,10 @@ export default function Room() {
 
   if (error) return <div className="p-8 text-red-400">{error}</div>;
   if (!room) return <div className="p-8 text-gray-400">Loading...</div>;
+
+  // Ignore a "running" flag older than 40 s, in case the runner closed their tab
+  const runningBy = runInfo && (now || runInfo.at) - runInfo.at < 40_000 ? runInfo.name : null;
+  const busy = running || runningBy !== null;
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white">
@@ -118,8 +187,8 @@ export default function Room() {
 
       <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] gap-3 p-3">
         <QuestionPanel />
-        <CodeEditor slug={room.slug} running={running} onRun={handleRun} />
-        <OutputPanel output={output} running={running} stdin={stdin} onStdinChange={setStdin} />
+        <CodeEditor doc={doc} provider={provider} status={status} busy={busy} onRun={handleRun} />
+        <OutputPanel output={output} runningBy={runningBy} stdin={stdin} onStdinChange={handleStdinChange} />
       </div>
     </div>
   );

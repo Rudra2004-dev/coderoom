@@ -14,6 +14,8 @@ function reapOrphans() {
 }
 reapOrphans();
 
+const concurrency = Number(process.env.WORKER_CONCURRENCY) || 2;
+
 const worker = new Worker<JobData, RunResult>(
   "code-runs",
   async (job) => {
@@ -22,9 +24,19 @@ const worker = new Worker<JobData, RunResult>(
     console.log(`[job ${job.id}] exit=${result.exitCode} timedOut=${result.timedOut} ${result.timeMs}ms`);
     return result;
   },
-  { connection: { host: "127.0.0.1", port: 6379 }, concurrency: 2 }
+  { connection: { host: "127.0.0.1", port: 6379 }, concurrency }
 );
 
+worker.on("failed", (job, err) => console.error(`[job ${job?.id}] failed:`, err.message));
+worker.on("error", (err) => console.error("worker error:", err.message));
+
+// Finish the current job before exiting on Ctrl+C
+process.on("SIGINT", async () => {
+  await worker.close();
+  process.exit(0);
+});
+
+console.log(`Worker ready (concurrency ${concurrency}), waiting for jobs...`);
 worker.on("failed", (job, err) => console.error(`[job ${job?.id}] failed:`, err.message));
 worker.on("error", (err) => console.error("worker error:", err.message));
 
