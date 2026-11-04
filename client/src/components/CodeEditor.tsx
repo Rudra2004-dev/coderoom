@@ -28,9 +28,10 @@ interface Props {
   canSubmit: boolean;
   onRun: (code: string, language: Language) => void;
   onSubmit: (code: string, language: Language) => void;
+  locked: boolean;
 }
 
-export default function CodeEditor({ doc, provider, status, busy, canSubmit, onRun, onSubmit }: Props) {
+export default function CodeEditor({ doc, provider, status, busy, canSubmit, locked, onRun, onSubmit }: Props) {
   const [monacoEditor, setMonacoEditor] = useState<editor.IStandaloneCodeEditor | null>(null);
   const [language, setLanguage] = useState<Language>("python");
 
@@ -135,6 +136,7 @@ export default function CodeEditor({ doc, provider, status, busy, canSubmit, onR
 
         <select
           value={language}
+          disabled={locked}
           onChange={(e) => changeLanguage(e.target.value as Language)}
           className="ml-auto bg-gray-800 border border-gray-700 text-white rounded px-2 py-1"
         >
@@ -166,7 +168,7 @@ export default function CodeEditor({ doc, provider, status, busy, canSubmit, onR
           height="100%"
           theme="vs-dark"
           defaultLanguage="python"
-          options={{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true }}
+          options={{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true, readOnly: locked }}
           onMount={(ed, monaco) => {
             monacoRef.current = monaco;
             setMonacoEditor(ed);

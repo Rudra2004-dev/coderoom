@@ -7,6 +7,7 @@ import QuestionPanel from "../components/QuestionPanel";
 import OutputPanel from "../components/OutputPanel";
 import type { SharedOutput, GradeOutput } from "../components/OutputPanel";
 import { useRoomDoc } from "../hooks/useRoomDoc";
+import ScorecardPanel from "../components/ScorecardPanel";
 
 interface RoomData {
   slug: string;
@@ -47,7 +48,7 @@ function formatResult(r: RunResult): SharedOutput {
 export default function Room() {
   const { slug = "" } = useParams();
   const { doc, provider, status } = useRoomDoc(slug);
-
+  const [showScore, setShowScore] = useState(false);
   const [room, setRoom] = useState<RoomData | null>(null);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
@@ -183,6 +184,21 @@ export default function Room() {
     }
   }
 
+
+  async function endInterview() {
+  if (!doc) return;
+  if (!window.confirm("End this interview? Nobody will be able to run or submit code afterwards.")) return;
+  const finalCode = doc.getText("code").toString();
+  const language = doc.getMap<string>("meta").get("language") ?? "python";
+  try {
+    await api(`/rooms/${slug}/end`, { method: "POST", body: JSON.stringify({ finalCode, language }) });
+    setRoom((r) => (r ? { ...r, status: "ended" } : r));
+    setShowScore(true);
+  } catch (err) {
+    window.alert((err as Error).message);
+  }
+}
+
   function copyCode() {
     navigator.clipboard.writeText(room!.slug);
     setCopied(true);
@@ -198,8 +214,9 @@ export default function Room() {
     runInfo && (now || runInfo.at) - runInfo.at < ttl
       ? `${runInfo.name} is ${runInfo.what === "grading" ? "grading" : "running"}...`
       : null;
-  const busy = running || runningLabel !== null;
-
+  const ended = room.status === "ended";
+  const isInterviewer = getUser()?.id === room.interviewer.id;
+  const busy = running || runningLabel !== null || ended;
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white">
       <header className="flex items-center gap-4 px-4 py-2 border-b border-gray-800 text-sm">
@@ -209,16 +226,31 @@ export default function Room() {
           {copied ? "Copied!" : "Copy code"}
         </button>
         <span className={room.status === "live" ? "text-green-400" : "text-yellow-400"}>● {room.status}</span>
+        {isInterviewer && !ended && (
+  <button onClick={endInterview} className="text-xs bg-red-700 hover:bg-red-600 rounded px-2 py-0.5">
+    End interview
+  </button>
+  )}
+  {isInterviewer && ended && (
+  <button onClick={() => setShowScore(true)} className="text-xs bg-blue-600 hover:bg-blue-500 rounded px-2 py-0.5">
+    Scorecard
+  </button>
+  )}
         <span className="ml-auto text-gray-400">
           Interviewer: {room.interviewer.name} · Candidate: {room.candidate ? room.candidate.name : "waiting..."}
         </span>
+        {ended && (
+      <div className="px-4 py-1.5 text-sm bg-yellow-950 text-yellow-200 border-b border-yellow-900">
+        {isInterviewer ? "This interview has ended." : "This interview has ended. Thank you for taking part!"}
+      </div>
+)}
       </header>
 
       <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] gap-3 p-3">
         <QuestionPanel
           slug={room.slug}
           questionId={room.questionId}
-          isInterviewer={getUser()?.id === room.interviewer.id}
+          isInterviewer={isInterviewer && !ended}
           onChanged={(id) => setRoom((r) => (r ? { ...r, questionId: id } : r))}
         />
         <CodeEditor
@@ -227,6 +259,7 @@ export default function Room() {
           status={status}
           busy={busy}
           canSubmit={room.questionId !== null}
+          locked={ended}
           onRun={handleRun}
           onSubmit={handleSubmit}
         />
@@ -237,6 +270,7 @@ export default function Room() {
           onStdinChange={handleStdinChange}
         />
       </div>
+      {showScore && isInterviewer && <ScorecardPanel slug={room.slug} onClose={() => setShowScore(false)} />}
     </div>
   );
 }

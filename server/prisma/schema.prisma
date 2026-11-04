@@ -43,6 +43,9 @@ model Room {
   candidate     User?        @relation("Candidate", fields: [candidateId], references: [id])
   question      Question?    @relation(fields: [questionId], references: [id])
   submissions   Submission[]
+  finalCode     String?
+  finalLanguage String?
+  scorecard     Scorecard?
 }
 
 
@@ -79,6 +82,19 @@ model Submission {
   results     Json
   passedCount Int
   totalCount  Int
+  createdAt   DateTime @default(now())
+  room        Room     @relation(fields: [roomId], references: [id])
+}
+
+
+model Scorecard {
+  id          String   @id @default(uuid())
+  roomId      String   @unique
+  correctness Int
+  codeQuality Int
+  efficiency  Int
+  model       String
+  details     Json
   createdAt   DateTime @default(now())
   room        Room     @relation(fields: [roomId], references: [id])
 }

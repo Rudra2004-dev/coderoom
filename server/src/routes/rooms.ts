@@ -7,6 +7,7 @@ import { runQueue } from "../queue";
 import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 import { gradeSubmission } from "../grading";
+import { generateScorecard, ScorecardError, toDto } from "../scorecard";
 
 const router = Router();
 router.use(requireAuth);
@@ -45,6 +46,9 @@ router.post("/:slug/join", requireRole("candidate"), async (req: AuthedRequest, 
   const slug = String(req.params.slug);
   const room = await prisma.room.findUnique({ where: { slug } });
   if (!room) return res.status(404).json({ error: "Room not found" });
+
+  if (room.status === "ended") return res.status(409).json({ error: "This interview has ended" });
+
   if (room.candidateId && room.candidateId !== req.user!.id)
     return res.status(409).json({ error: "Room already has a candidate" });
   const updated = await prisma.room.update({
@@ -72,6 +76,8 @@ router.post("/:slug/run", runLimiter, async (req: AuthedRequest, res) => {
   const room = await prisma.room.findUnique({ where: { slug } });
   if (!room || (room.interviewerId !== req.user!.id && room.candidateId !== req.user!.id))
     return res.status(403).json({ error: "Not a member of this room" });
+
+  if (room.status === "ended") return res.status(409).json({ error: "This interview has ended" });
 
   if ((await runQueue.getWaitingCount()) >= 50)
     return res.status(503).json({ error: "Server is busy. Try again in a few seconds." });
@@ -199,6 +205,80 @@ router.post("/:slug/submit", submitLimiter, async (req: AuthedRequest, res) => {
     res.status(503).json({ error: "Grading failed. Please try again." });
   } finally {
     grading.delete(room.id);
+  }
+});
+
+
+const endSchema = z.object({
+  finalCode: z.string().max(50_000),
+  language: z.enum(["python", "cpp", "java"]),
+});
+
+// Interviewer ends the interview. Saves the final code. Never calls the AI.
+router.post("/:slug/end", requireRole("interviewer"), async (req: AuthedRequest, res) => {
+  const parsed = endSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "finalCode and language are required" });
+
+  const room = await prisma.room.findUnique({ where: { slug: String(req.params.slug) } });
+  if (!room || room.interviewerId !== req.user!.id)
+    return res.status(403).json({ error: "Only the room's interviewer can do this" });
+  if (room.status === "ended") return res.json({ ok: true, alreadyEnded: true });
+
+  await prisma.room.update({
+    where: { id: room.id },
+    data: {
+      status: "ended",
+      endedAt: new Date(),
+      finalCode: parsed.data.finalCode,
+      finalLanguage: parsed.data.language,
+    },
+  });
+  res.json({ ok: true });
+});
+
+const scorecardLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 10, // protects your Groq quota
+  keyGenerator: (req) => (req as AuthedRequest).user!.id,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many scorecard requests. Try again later." },
+});
+
+const scoring = new Set<string>();
+
+// Interviewer reads the saved scorecard (null if none yet)
+router.get("/:slug/scorecard", requireRole("interviewer"), async (req: AuthedRequest, res) => {
+  const room = await prisma.room.findUnique({
+    where: { slug: String(req.params.slug) },
+    include: { scorecard: true },
+  });
+  if (!room || room.interviewerId !== req.user!.id)
+    return res.status(403).json({ error: "Only the room's interviewer can do this" });
+  res.json(room.scorecard ? toDto(room.scorecard) : null);
+});
+
+// Interviewer generates (or regenerates) the scorecard for an ended interview
+router.post("/:slug/scorecard", requireRole("interviewer"), scorecardLimiter, async (req: AuthedRequest, res) => {
+  const room = await prisma.room.findUnique({
+    where: { slug: String(req.params.slug) },
+    include: { scorecard: true },
+  });
+  if (!room || room.interviewerId !== req.user!.id)
+    return res.status(403).json({ error: "Only the room's interviewer can do this" });
+  if (room.status !== "ended") return res.status(409).json({ error: "End the interview first" });
+  if (room.scorecard && req.query.regenerate !== "1") return res.json(toDto(room.scorecard));
+  if (scoring.has(room.id)) return res.status(409).json({ error: "A scorecard is already being generated" });
+
+  scoring.add(room.id);
+  try {
+    res.json(toDto(await generateScorecard(room.id)));
+  } catch (err) {
+    if (err instanceof ScorecardError) return res.status(err.status).json({ error: err.message });
+    console.error("scorecard failed:", err);
+    res.status(500).json({ error: "Could not generate the scorecard" });
+  } finally {
+    scoring.delete(room.id);
   }
 });
 
