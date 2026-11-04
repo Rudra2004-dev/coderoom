@@ -6,6 +6,7 @@ import roomRoutes from "./routes/rooms";
 import http from "http";
 import { attachYjs } from "./yjs";
 import jobRoutes from "./routes/jobs";
+import questionRoutes from "./routes/questions";
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173" }));
@@ -13,6 +14,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/rooms", roomRoutes);
 app.use("/jobs", jobRoutes);
+app.use("/questions", questionRoutes);
 
 
 app.get("/health", (_req, res) => res.json({ ok: true}));

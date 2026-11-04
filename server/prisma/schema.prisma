@@ -30,14 +30,55 @@ model User {
 }
 
 model Room {
-  id            String     @id @default(uuid())
-  slug          String     @unique
+  id            String       @id @default(uuid())
+  slug          String       @unique
   interviewerId String
   candidateId   String?
-  language      String     @default("python")
-  status        RoomStatus @default(waiting)
-  createdAt     DateTime   @default(now())
+  questionId    String?
+  language      String       @default("python")
+  status        RoomStatus   @default(waiting)
+  createdAt     DateTime     @default(now())
   endedAt       DateTime?
-  interviewer   User       @relation("Interviewer", fields: [interviewerId], references: [id])
-  candidate     User?      @relation("Candidate", fields: [candidateId], references: [id])
+  interviewer   User         @relation("Interviewer", fields: [interviewerId], references: [id])
+  candidate     User?        @relation("Candidate", fields: [candidateId], references: [id])
+  question      Question?    @relation(fields: [questionId], references: [id])
+  submissions   Submission[]
+}
+
+
+model Question {
+  id           String     @id @default(uuid())
+  slug         String     @unique
+  position     Int        @default(0)
+  title        String
+  difficulty   String
+  description  String
+  inputFormat  String
+  outputFormat String
+  createdAt    DateTime   @default(now())
+  testCases    TestCase[]
+  rooms        Room[]
+}
+
+model TestCase {
+  id             String   @id @default(uuid())
+  questionId     String
+  input          String
+  expectedOutput String
+  isHidden       Boolean  @default(false)
+  order          Int      @default(0)
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  roomId      String
+  userId      String
+  language    String
+  code        String
+  results     Json
+  passedCount Int
+  totalCount  Int
+  createdAt   DateTime @default(now())
+  room        Room     @relation(fields: [roomId], references: [id])
 }

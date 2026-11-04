@@ -11,6 +11,7 @@ import { useRoomDoc } from "../hooks/useRoomDoc";
 interface RoomData {
   slug: string;
   status: string;
+  questionId: string | null;
   interviewer: { id: string; name: string };
   candidate: { id: string; name: string } | null;
 }
@@ -186,7 +187,7 @@ useEffect(() => {
       </header>
 
       <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] gap-3 p-3">
-        <QuestionPanel />
+        <QuestionPanel slug={room.slug} questionId={room.questionId} isInterviewer={getUser()?.id === room.interviewer.id} onChanged={(id) => setRoom((r) => (r ? { ...r, questionId: id } : r))}/>n
         <CodeEditor doc={doc} provider={provider} status={status} busy={busy} onRun={handleRun} />
         <OutputPanel output={output} runningBy={runningBy} stdin={stdin} onStdinChange={handleStdinChange} />
       </div>

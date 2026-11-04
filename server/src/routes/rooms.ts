@@ -78,4 +78,56 @@ router.post("/:slug/run", runLimiter, async (req: AuthedRequest, res) => {
   res.status(202).json({ jobId: job.id });
 });
 
+
+const pickSchema = z.object({ questionId: z.string().min(1) });
+
+// Interviewer chooses the question for their room
+router.put("/:slug/question", requireRole("interviewer"), async (req: AuthedRequest, res) => {
+  const parsed = pickSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "questionId is required" });
+
+  const room = await prisma.room.findUnique({ where: { slug: String(req.params.slug) } });
+  if (!room || room.interviewerId !== req.user!.id)
+    return res.status(403).json({ error: "Only the room's interviewer can do this" });
+  if (room.status === "ended") return res.status(409).json({ error: "This interview has ended" });
+
+  const question = await prisma.question.findUnique({ where: { id: parsed.data.questionId } });
+  if (!question) return res.status(404).json({ error: "Question not found" });
+
+  await prisma.room.update({ where: { id: room.id }, data: { questionId: question.id } });
+  res.json({ ok: true });
+});
+
+// Either member reads the active question. Hidden test cases never leave the server.
+router.get("/:slug/question", async (req: AuthedRequest, res) => {
+  const room = await prisma.room.findUnique({ where: { slug: String(req.params.slug) } });
+  if (!room || (room.interviewerId !== req.user!.id && room.candidateId !== req.user!.id))
+    return res.status(403).json({ error: "Not a member of this room" });
+  if (!room.questionId) return res.json(null);
+
+  const question = await prisma.question.findUnique({
+    where: { id: room.questionId },
+    select: {
+      id: true,
+      title: true,
+      difficulty: true,
+      description: true,
+      inputFormat: true,
+      outputFormat: true,
+      testCases: {
+        where: { isHidden: false },
+        orderBy: { order: "asc" },
+        select: { input: true, expectedOutput: true },
+      },
+    },
+  });
+  if (!question) return res.json(null);
+
+  const hiddenCount = await prisma.testCase.count({
+    where: { questionId: question.id, isHidden: true },
+  });
+  const { testCases, ...rest } = question;
+  res.json({ ...rest, examples: testCases, hiddenCount });
+});
+
 export default router;
