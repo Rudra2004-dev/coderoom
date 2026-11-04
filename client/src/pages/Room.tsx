@@ -5,7 +5,7 @@ import CodeEditor from "../components/CodeEditor";
 import type { Language } from "../components/CodeEditor";
 import QuestionPanel from "../components/QuestionPanel";
 import OutputPanel from "../components/OutputPanel";
-import type { RunOutput } from "../components/OutputPanel";
+import type { SharedOutput, GradeOutput } from "../components/OutputPanel";
 import { useRoomDoc } from "../hooks/useRoomDoc";
 
 interface RoomData {
@@ -28,7 +28,7 @@ interface RunResult {
   timeMs: number;
 }
 
-function formatResult(r: RunResult): RunOutput {
+function formatResult(r: RunResult): SharedOutput {
   const parts: string[] = [];
   if (r.compileError) parts.push("Compilation failed:");
   if (r.stdout) parts.push(r.stdout);
@@ -41,7 +41,7 @@ function formatResult(r: RunResult): RunOutput {
   else if (!r.stdout && !r.stderr) parts.push("(program finished with no output)");
   parts.push(`(${r.timeMs} ms)`);
   const isError = r.timedOut || r.memoryExceeded || r.compileError || r.exitCode !== 0;
-  return { text: parts.join("\n"), isError };
+  return { kind: "run", text: parts.join("\n"), isError };
 }
 
 export default function Room() {
@@ -52,17 +52,17 @@ export default function Room() {
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [now, setNow] = useState(0);
 
   // Shared state, mirrored from the Yjs document
   const [stdin, setStdin] = useState("");
-  const [output, setOutput] = useState<RunOutput | null>(null);
-  const [runInfo, setRunInfo] = useState<{ name: string; at: number } | null>(null);
-  const [now, setNow] = useState(0);
+  const [output, setOutput] = useState<SharedOutput | null>(null);
+  const [runInfo, setRunInfo] = useState<{ name: string; at: number; what?: string } | null>(null);
 
-useEffect(() => {
-  const t = setInterval(() => setNow(Date.now()), 5000);
-  return () => clearInterval(t);
-}, []);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -129,16 +129,22 @@ useEffect(() => {
     });
   }
 
-  function publish(out: RunOutput) {
+  function publish(out: SharedOutput) {
     const me = getUser();
-    doc?.getMap<string>("run").set("result", JSON.stringify({ ...out, by: me?.name ?? "someone", at: Date.now() }));
+    doc
+      ?.getMap<string>("run")
+      .set("result", JSON.stringify({ ...out, by: me?.name ?? "someone", at: Date.now() }));
+  }
+
+  function setBusyFlag(what: "running" | "grading") {
+    const me = getUser();
+    doc?.getMap<string>("run").set("running", JSON.stringify({ name: me?.name ?? "someone", at: Date.now(), what }));
   }
 
   async function handleRun(code: string, language: Language) {
-    const me = getUser();
     const runMap = doc?.getMap<string>("run");
     setRunning(true);
-    runMap?.set("running", JSON.stringify({ name: me?.name ?? "someone", at: Date.now() }));
+    setBusyFlag("running");
     try {
       const { jobId } = await api(`/rooms/${slug}/run`, {
         method: "POST",
@@ -148,11 +154,29 @@ useEffect(() => {
         await new Promise((r) => setTimeout(r, 500));
         const job = await api(`/jobs/${jobId}`);
         if (job.state === "completed") return publish(formatResult(job.result));
-        if (job.state === "failed") return publish({ text: job.error, isError: true });
+        if (job.state === "failed") return publish({ kind: "run", text: job.error, isError: true });
       }
-      publish({ text: "No response from the worker. Is it running?", isError: true });
+      publish({ kind: "run", text: "No response from the worker. Is it running?", isError: true });
     } catch (err) {
-      publish({ text: (err as Error).message, isError: true });
+      publish({ kind: "run", text: (err as Error).message, isError: true });
+    } finally {
+      runMap?.delete("running");
+      setRunning(false);
+    }
+  }
+
+  async function handleSubmit(code: string, language: Language) {
+    const runMap = doc?.getMap<string>("run");
+    setRunning(true);
+    setBusyFlag("grading");
+    try {
+      const result: Omit<GradeOutput, "kind"> = await api(`/rooms/${slug}/submit`, {
+        method: "POST",
+        body: JSON.stringify({ language, code }),
+      });
+      publish({ kind: "grade", ...result });
+    } catch (err) {
+      publish({ kind: "run", text: (err as Error).message, isError: true });
     } finally {
       runMap?.delete("running");
       setRunning(false);
@@ -168,9 +192,13 @@ useEffect(() => {
   if (error) return <div className="p-8 text-red-400">{error}</div>;
   if (!room) return <div className="p-8 text-gray-400">Loading...</div>;
 
-  // Ignore a "running" flag older than 40 s, in case the runner closed their tab
-  const runningBy = runInfo && (now || runInfo.at) - runInfo.at < 40_000 ? runInfo.name : null;
-  const busy = running || runningBy !== null;
+  // A busy flag expires, in case the person who set it closed their tab. Grading gets longer.
+  const ttl = runInfo?.what === "grading" ? 120_000 : 40_000;
+  const runningLabel =
+    runInfo && (now || runInfo.at) - runInfo.at < ttl
+      ? `${runInfo.name} is ${runInfo.what === "grading" ? "grading" : "running"}...`
+      : null;
+  const busy = running || runningLabel !== null;
 
   return (
     <div className="h-screen flex flex-col bg-gray-950 text-white">
@@ -187,9 +215,27 @@ useEffect(() => {
       </header>
 
       <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] gap-3 p-3">
-        <QuestionPanel slug={room.slug} questionId={room.questionId} isInterviewer={getUser()?.id === room.interviewer.id} onChanged={(id) => setRoom((r) => (r ? { ...r, questionId: id } : r))}/>n
-        <CodeEditor doc={doc} provider={provider} status={status} busy={busy} onRun={handleRun} />
-        <OutputPanel output={output} runningBy={runningBy} stdin={stdin} onStdinChange={handleStdinChange} />
+        <QuestionPanel
+          slug={room.slug}
+          questionId={room.questionId}
+          isInterviewer={getUser()?.id === room.interviewer.id}
+          onChanged={(id) => setRoom((r) => (r ? { ...r, questionId: id } : r))}
+        />
+        <CodeEditor
+          doc={doc}
+          provider={provider}
+          status={status}
+          busy={busy}
+          canSubmit={room.questionId !== null}
+          onRun={handleRun}
+          onSubmit={handleSubmit}
+        />
+        <OutputPanel
+          output={output}
+          runningLabel={runningLabel}
+          stdin={stdin}
+          onStdinChange={handleStdinChange}
+        />
       </div>
     </div>
   );

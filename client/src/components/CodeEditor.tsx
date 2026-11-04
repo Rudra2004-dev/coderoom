@@ -25,10 +25,12 @@ interface Props {
   provider: WebsocketProvider | null;
   status: ConnStatus;
   busy: boolean;
+  canSubmit: boolean;
   onRun: (code: string, language: Language) => void;
+  onSubmit: (code: string, language: Language) => void;
 }
 
-export default function CodeEditor({ doc, provider, status, busy, onRun }: Props) {
+export default function CodeEditor({ doc, provider, status, busy, canSubmit, onRun, onSubmit }: Props) {
   const [monacoEditor, setMonacoEditor] = useState<editor.IStandaloneCodeEditor | null>(null);
   const [language, setLanguage] = useState<Language>("python");
 
@@ -141,13 +143,22 @@ export default function CodeEditor({ doc, provider, status, busy, onRun }: Props
           <option value="java">Java</option>
         </select>
 
-        <button
-          disabled={busy || status !== "connected"}
-          onClick={() => onRun(yTextRef.current?.toString() ?? "", language)}
-          className="bg-green-600 hover:bg-green-500 text-white rounded px-3 py-1 disabled:opacity-50"
-        >
-          {busy ? "Running..." : "▶ Run"}
-        </button>
+       <button
+  disabled={busy || status !== "connected"}
+  onClick={() => onRun(yTextRef.current?.toString() ?? "", language)}
+  className="bg-green-600 hover:bg-green-500 text-white rounded px-3 py-1 disabled:opacity-50"
+>
+  {busy ? "Busy..." : "▶ Run"}
+</button>
+
+<button
+  disabled={busy || status !== "connected" || !canSubmit}
+  title={canSubmit ? "Run every test case" : "Waiting for a question"}
+  onClick={() => onSubmit(yTextRef.current?.toString() ?? "", language)}
+  className="bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1 disabled:opacity-50"
+>
+  ✓ Submit
+</button>
       </div>
 
       <div className="flex-1 min-h-0">

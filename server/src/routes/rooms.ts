@@ -5,6 +5,8 @@ import { requireAuth, requireRole, AuthedRequest } from "../middleware/auth";
 import { z } from "zod";
 import { runQueue } from "../queue";
 import rateLimit from "express-rate-limit";
+import { Prisma } from "@prisma/client";
+import { gradeSubmission } from "../grading";
 
 const router = Router();
 router.use(requireAuth);
@@ -128,6 +130,76 @@ router.get("/:slug/question", async (req: AuthedRequest, res) => {
   });
   const { testCases, ...rest } = question;
   res.json({ ...rest, examples: testCases, hiddenCount });
+});
+
+
+const submitSchema = z.object({
+  language: z.enum(["python", "cpp", "java"]), // allowlist, same as /run
+  code: z.string().min(1).max(50_000),
+});
+
+const submitLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 6, // each submit fans out into several jobs, so the limit is lower than /run
+  keyGenerator: (req) => (req as AuthedRequest).user!.id,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many submissions. Wait a minute and try again." },
+});
+
+// Rooms currently being graded, so a double click can't launch two gradings
+const grading = new Set<string>();
+
+router.post("/:slug/submit", submitLimiter, async (req: AuthedRequest, res) => {
+  const parsed = submitSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    return res.status(400).json({ error: `${first.path.join(".")}: ${first.message}` });
+  }
+
+  const room = await prisma.room.findUnique({ where: { slug: String(req.params.slug) } });
+  if (!room || (room.interviewerId !== req.user!.id && room.candidateId !== req.user!.id))
+    return res.status(403).json({ error: "Not a member of this room" });
+  if (room.status === "ended") return res.status(409).json({ error: "This interview has ended" });
+  if (!room.questionId) return res.status(409).json({ error: "No question has been selected yet" });
+  if (grading.has(room.id)) return res.status(409).json({ error: "A submission is already being graded" });
+
+  const tests = await prisma.testCase.findMany({
+    where: { questionId: room.questionId },
+    orderBy: { order: "asc" },
+  });
+  if (tests.length === 0) return res.status(409).json({ error: "This question has no test cases" });
+
+  // Fail fast with a clear message instead of making the user wait for a timeout
+  if ((await runQueue.getWorkers()).length === 0)
+    return res.status(503).json({ error: "No grader is available right now. Please try again shortly." });
+  if ((await runQueue.getWaitingCount()) + tests.length > 50)
+    return res.status(503).json({ error: "Server is busy. Try again in a few seconds." });
+
+  grading.add(room.id);
+  try {
+    const result = await gradeSubmission(
+      { language: parsed.data.language, code: parsed.data.code, userId: req.user!.id, roomSlug: room.slug },
+      tests
+    );
+    const saved = await prisma.submission.create({
+      data: {
+        roomId: room.id,
+        userId: req.user!.id,
+        language: parsed.data.language,
+        code: parsed.data.code,
+        results: result as unknown as Prisma.InputJsonValue,
+        passedCount: result.passedCount,
+        totalCount: result.totalCount,
+      },
+    });
+    res.json({ submissionId: saved.id, ...result });
+  } catch (err) {
+    console.error("grading failed:", err);
+    res.status(503).json({ error: "Grading failed. Please try again." });
+  } finally {
+    grading.delete(room.id);
+  }
 });
 
 export default router;
