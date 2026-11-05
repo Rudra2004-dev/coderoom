@@ -50,7 +50,7 @@ const LABEL: Record<Verdict, string> = {
   not_run: "Not run",
 };
 
-function GradeView({ g }: { g: GradeOutput }) {
+export function GradeView({ g }: { g: GradeOutput }) {
   const allPassed = g.passedCount === g.totalCount;
   return (
     <div className="space-y-2">

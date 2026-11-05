@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api, getUser } from "../api";
 
 export default function Home() {
@@ -38,6 +38,9 @@ export default function Home() {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">CodeRoom</h1>
           <div className="text-sm text-gray-400">
+            {user?.role === "interviewer" && (
+              <Link to="/dashboard" className="mr-3 underline hover:text-white">My interviews</Link>
+               )}
             {user?.name} ({user?.role}){" "}
             <button onClick={logout} className="ml-3 underline hover:text-white">Log out</button>
           </div>

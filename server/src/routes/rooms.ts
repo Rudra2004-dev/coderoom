@@ -29,7 +29,7 @@ router.post("/", requireRole("interviewer"), async (req: AuthedRequest, res) => 
   res.status(201).json(room);
 });
 
-router.get("/:slug", async (req, res) => {
+router.get("/:slug", async (req: AuthedRequest, res) => {
   const slug = String(req.params.slug);
   const room = await prisma.room.findUnique({
     where: { slug },
@@ -38,8 +38,14 @@ router.get("/:slug", async (req, res) => {
       candidate: { select: { id: true, name: true } },
     },
   });
-  if (!room) return res.status(404).json({ error: "Room not found" });
-  res.json(room);
+
+  const me = req.user!.id;
+  if (!room || (room.interviewer.id !== me && room.candidate?.id !== me))
+    return res.status(404).json({ error: "Room not found" });
+
+  // The final code is for the report route, not for the live room payload
+  const { finalCode: _code, finalLanguage: _lang, ...safe } = room;
+  res.json(safe);
 });
 
 router.post("/:slug/join", requireRole("candidate"), async (req: AuthedRequest, res) => {
@@ -280,6 +286,90 @@ router.post("/:slug/scorecard", requireRole("interviewer"), scorecardLimiter, as
   } finally {
     scoring.delete(room.id);
   }
+});
+
+
+// The interviewer's own interviews, newest first
+router.get("/", requireRole("interviewer"), async (req: AuthedRequest, res) => {
+  const rooms = await prisma.room.findMany({
+    where: { interviewerId: req.user!.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      slug: true,
+      status: true,
+      createdAt: true,
+      endedAt: true,
+      candidate: { select: { name: true } },
+      question: { select: { title: true, difficulty: true } },
+      submissions: { select: { passedCount: true, totalCount: true } },
+      scorecard: { select: { correctness: true, codeQuality: true, efficiency: true } },
+    },
+  });
+
+  res.json(
+    rooms.map((r) => {
+      // Best attempt = highest pass rate
+      let best: { passed: number; total: number } | null = null;
+      let bestRatio = -1;
+      for (const s of r.submissions) {
+        const ratio = s.totalCount ? s.passedCount / s.totalCount : 0;
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          best = { passed: s.passedCount, total: s.totalCount };
+        }
+      }
+      return {
+        slug: r.slug,
+        status: r.status,
+        createdAt: r.createdAt,
+        endedAt: r.endedAt,
+        candidate: r.candidate?.name ?? null,
+        question: r.question?.title ?? null,
+        difficulty: r.question?.difficulty ?? null,
+        attempts: r.submissions.length,
+        best,
+        minutes: r.endedAt ? Math.max(1, Math.round((r.endedAt.getTime() - r.createdAt.getTime()) / 60_000)) : null,
+        scorecard: r.scorecard,
+      };
+    })
+  );
+});
+
+// Everything about one interview. Owner only.
+router.get("/:slug/report", requireRole("interviewer"), async (req: AuthedRequest, res) => {
+  const room = await prisma.room.findUnique({
+    where: { slug: String(req.params.slug) },
+    include: {
+      candidate: { select: { name: true } },
+      question: { select: { title: true, difficulty: true, description: true } },
+      submissions: { orderBy: { createdAt: "asc" } },
+      scorecard: true,
+    },
+  });
+  // 404 for "missing" and "not yours" alike, so slugs can't be probed
+  if (!room || room.interviewerId !== req.user!.id) return res.status(404).json({ error: "Interview not found" });
+
+  res.json({
+    slug: room.slug,
+    status: room.status,
+    createdAt: room.createdAt,
+    endedAt: room.endedAt,
+    candidate: room.candidate?.name ?? null,
+    question: room.question,
+    finalCode: room.finalCode,
+    finalLanguage: room.finalLanguage,
+    submissions: room.submissions.map((s) => ({
+      id: s.id,
+      language: s.language,
+      code: s.code,
+      passedCount: s.passedCount,
+      totalCount: s.totalCount,
+      createdAt: s.createdAt,
+      results: s.results,
+    })),
+    scorecard: room.scorecard ? toDto(room.scorecard) : null,
+  });
 });
 
 export default router;
