@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import { Prisma } from "@prisma/client";
 import { gradeSubmission } from "../grading";
 import { generateScorecard, ScorecardError, toDto } from "../scorecard";
+import { readRoomSnapshot, closeRoomSockets } from "../yjs";
 
 const router = Router();
 router.use(requireAuth);
@@ -230,15 +231,19 @@ router.post("/:slug/end", requireRole("interviewer"), async (req: AuthedRequest,
     return res.status(403).json({ error: "Only the room's interviewer can do this" });
   if (room.status === "ended") return res.json({ ok: true, alreadyEnded: true });
 
+    // Prefer the server's own copy of the document. Fall back to what the browser sent
+  // only if the server has none (for example after a restart).
+  const snap = readRoomSnapshot(room.slug);
+  const finalCode = (snap ? snap.code : parsed.data.finalCode).slice(0, 50_000);
+  const language =
+    snap?.language && ["python", "cpp", "java"].includes(snap.language) ? snap.language : parsed.data.language;
+
   await prisma.room.update({
     where: { id: room.id },
-    data: {
-      status: "ended",
-      endedAt: new Date(),
-      finalCode: parsed.data.finalCode,
-      finalLanguage: parsed.data.language,
-    },
+    data: { status: "ended", endedAt: new Date(), finalCode, finalLanguage: language },
   });
+
+  closeRoomSockets(room.slug); // from now on the server refuses edits, not just the UI
   res.json({ ok: true });
 });
 

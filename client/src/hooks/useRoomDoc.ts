@@ -5,13 +5,13 @@ import { WS_BASE } from "../api";
 
 export type ConnStatus = "connecting" | "connected" | "disconnected";
 
-export function useRoomDoc(slug: string) {
+export function useRoomDoc(slug: string, enabled = true) {
   const [session, setSession] = useState<{ doc: Y.Doc; provider: WebsocketProvider } | null>(null);
   const [status, setStatus] = useState<ConnStatus>("connecting");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!slug || !token) return;
+    if (!slug || !token || !enabled) return;
 
     const doc = new Y.Doc();
     const provider = new WebsocketProvider(WS_BASE, slug, doc, { params: { token } });
@@ -28,7 +28,7 @@ export function useRoomDoc(slug: string) {
       doc.destroy();
       setSession(null);
     };
-  }, [slug]);
+  }, [slug, enabled]);
 
   return { doc: session?.doc ?? null, provider: session?.provider ?? null, status };
 }

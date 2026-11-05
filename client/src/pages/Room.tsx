@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { api, getUser } from "../api";
 import CodeEditor from "../components/CodeEditor";
 import type { Language } from "../components/CodeEditor";
@@ -47,9 +47,10 @@ function formatResult(r: RunResult): SharedOutput {
 
 export default function Room() {
   const { slug = "" } = useParams();
-  const { doc, provider, status } = useRoomDoc(slug);
-  const [showScore, setShowScore] = useState(false);
+  const navigate = useNavigate();
   const [room, setRoom] = useState<RoomData | null>(null);
+  const { doc, provider, status } = useRoomDoc(slug, room?.status !== "ended");
+  const [showScore, setShowScore] = useState(false);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -192,8 +193,7 @@ export default function Room() {
   const language = doc.getMap<string>("meta").get("language") ?? "python";
   try {
     await api(`/rooms/${slug}/end`, { method: "POST", body: JSON.stringify({ finalCode, language }) });
-    setRoom((r) => (r ? { ...r, status: "ended" } : r));
-    setShowScore(true);
+    navigate(`/dashboard/${slug}`);
   } catch (err) {
     window.alert((err as Error).message);
   }
@@ -207,6 +207,27 @@ export default function Room() {
 
   if (error) return <div className="p-8 text-red-400">{error}</div>;
   if (!room) return <div className="p-8 text-gray-400">Loading...</div>;
+
+
+  if (room.status === "ended") {
+  const mine = getUser()?.id === room.interviewer.id;
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-6">
+      <div className="max-w-md text-center space-y-4">
+        <h1 className="text-2xl font-bold">This interview has ended</h1>
+        <p className="text-gray-400">
+          {mine ? "The code, results and scorecard are saved in your dashboard." : "Thank you for taking part!"}
+        </p>
+        <Link
+          to={mine ? `/dashboard/${room.slug}` : "/"}
+          className="inline-block bg-blue-600 hover:bg-blue-500 rounded px-4 py-2"
+        >
+          {mine ? "View report" : "Back to home"}
+        </Link>
+      </div>
+    </div>
+  );
+}
 
   // A busy flag expires, in case the person who set it closed their tab. Grading gets longer.
   const ttl = runInfo?.what === "grading" ? 120_000 : 40_000;

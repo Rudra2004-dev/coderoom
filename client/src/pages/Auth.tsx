@@ -4,7 +4,7 @@ import { api } from "../api";
 
 export default function Auth() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "candidate" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "candidate", inviteCode: ""  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -45,6 +45,10 @@ export default function Auth() {
               <option value="candidate">Candidate</option>
               <option value="interviewer">Interviewer</option>
             </select>
+            {form.role === "interviewer" && (
+            <input className={input} placeholder="Interviewer invite code" value={form.inviteCode}
+             onChange={(e) => update("inviteCode", e.target.value)} />
+             )}
           </>
         )}
 
