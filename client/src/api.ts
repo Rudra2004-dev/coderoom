@@ -1,5 +1,8 @@
-const BASE = "http://localhost:4000";
-export const WS_BASE = "ws://localhost:4000/yjs";
+const isDev = import.meta.env.DEV;
+const BASE = isDev ? "http://localhost:4000" : "/api";
+export const WS_BASE = isDev
+  ? "ws://localhost:4000/yjs"
+  : `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/yjs`;
 
 export async function api(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem("token");
