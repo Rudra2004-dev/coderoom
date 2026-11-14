@@ -5,6 +5,7 @@ import { api, getUser } from "../api";
 import { GradeView } from "../components/OutputPanel";
 import type { GradeOutput } from "../components/OutputPanel";
 import ScorecardPanel from "../components/ScorecardPanel";
+import Navbar from "../components/Navbar";
 
 interface Report {
   slug: string;
@@ -62,6 +63,9 @@ export default function InterviewDetail() {
   const total = report.submissions[0]?.totalCount ?? 0;
 
   return (
+    <>
+    <Navbar />
+    <div className="min-h-[calc(100vh-3.5rem)] bg-gray-950 text-white p-8">
     <div className="min-h-screen bg-gray-950 text-white p-6">
       <div className="max-w-6xl mx-auto space-y-5">
         <div className="flex items-center gap-4">
@@ -76,6 +80,8 @@ export default function InterviewDetail() {
             {report.scorecard ? "View scorecard" : "Generate scorecard"}
           </button>
         </div>
+        </div>
+        
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div className="bg-gray-900 border border-gray-800 rounded p-3">
@@ -151,5 +157,6 @@ export default function InterviewDetail() {
 
       {showScore && <ScorecardPanel slug={report.slug} onClose={() => setShowScore(false)} />}
     </div>
+    </>
   );
 }

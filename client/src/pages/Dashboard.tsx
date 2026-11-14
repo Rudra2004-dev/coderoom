@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { api, getUser } from "../api";
+import Navbar from "../components/Navbar";
 
 interface Row {
   slug: string;
@@ -46,6 +47,9 @@ export default function Dashboard() {
   );
 
   return (
+    <>
+    <Navbar />
+    <div className="min-h-[calc(100vh-3.5rem)] bg-gray-950 text-white p-8">
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
@@ -65,6 +69,8 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      </div>
+      
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
         {!rows && !error && <p className="text-gray-400 text-sm">Loading...</p>}
@@ -131,5 +137,6 @@ export default function Dashboard() {
         )}
       </div>
     </div>
+    </>
   );
 }

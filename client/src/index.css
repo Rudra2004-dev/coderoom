@@ -1,2 +1,171 @@
 @import "tailwindcss";
-  
+
+:root { color-scheme: dark; }
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  background: #070714;
+}
+
+/* Page background: dark navy with purple glows */
+.neon-bg {
+  min-height: 100dvh;
+  color: #fff;
+  background:
+    radial-gradient(60rem 28rem at 88% -8%, rgba(124, 58, 237, 0.38), transparent 60%),
+    radial-gradient(40rem 26rem at -8% 45%, rgba(79, 70, 229, 0.26), transparent 60%),
+    #070714;
+}
+
+/* Glass card with a violet border */
+.neon-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 1rem;
+  backdrop-filter: blur(6px);
+}
+
+.neon-glow {
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.55), 0 0 44px rgba(124, 58, 237, 0.35);
+}
+
+/* Gradient headline word */
+.neon-text {
+  background: linear-gradient(90deg, #a78bfa, #c084fc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  transition: filter 0.15s, transform 0.15s;
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.12); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ghost {
+  border: 1px solid rgba(167, 139, 250, 0.55);
+  color: #fff;
+  border-radius: 0.75rem;
+  transition: background 0.15s;
+}
+.btn-ghost:hover { background: rgba(124, 58, 237, 0.15); }
+
+
+/* Dotted pattern, top right */
+.neon-dots {
+  background-image: radial-gradient(rgba(167, 139, 250, 0.35) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Perspective-style grid fading up from the bottom */
+.neon-floor {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 14rem;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(0deg, rgba(139, 92, 246, 0.2) 0 1px, transparent 1px 32px);
+  -webkit-mask-image: linear-gradient(to top, #000, transparent);
+  mask-image: linear-gradient(to top, #000, transparent);
+}
+
+/* Soft glow behind the headline */
+.neon-title { text-shadow: 0 0 40px rgba(167, 139, 250, 0.35); }
+
+.landing-root {
+  height: 100dvh;
+  overflow: hidden;
+}
+@media (max-width: 767px) {
+  .landing-root {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+/* ───────── Light glass theme ───────── */
+.lt-bg {
+  min-height: 100dvh;
+  color-scheme: light;
+  color: #0f172a;
+  background:
+    radial-gradient(48rem 30rem at -5% 38%, rgba(147, 197, 253, 0.5), transparent 60%),
+    radial-gradient(52rem 32rem at 105% 18%, rgba(253, 230, 138, 0.5), transparent 60%),
+    radial-gradient(40rem 26rem at 72% 112%, rgba(253, 186, 116, 0.28), transparent 60%),
+    #f8fafc;
+}
+
+.lt-card {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04);
+  backdrop-filter: blur(10px);
+}
+
+.lt-tile {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 1rem;
+}
+
+.lt-pill {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  transition: background 0.15s;
+}
+
+.btn-dark {
+  background: #0b1020;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: background 0.15s;
+}
+.btn-dark:hover:not(:disabled) { background: #1e293b; }
+.btn-dark:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-outline {
+  border: 1.5px solid #0b1020;
+  color: #0b1020;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.6);
+  transition: background 0.15s;
+}
+.btn-outline:hover { background: #fff; }
+
+.serif-italic {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+
+/* Tinted variants of the light card */
+.lt-tint-blue {
+  background: linear-gradient(135deg, rgba(219, 234, 254, 0.9), rgba(237, 233, 254, 0.75));
+}
+.lt-tint-amber {
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.95), rgba(254, 240, 200, 0.8));
+}
+
+
+@media (max-height: 560px) {
+  .landing-root {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
