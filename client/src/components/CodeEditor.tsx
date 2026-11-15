@@ -5,6 +5,7 @@ import type { editor } from "monaco-editor";
 import type * as Y from "yjs";
 import type { WebsocketProvider } from "y-websocket";
 import { MonacoBinding } from "y-monaco";
+import { ChevronDown, Check, Play } from "lucide-react";
 import { getUser } from "../api";
 import type { ConnStatus } from "../hooks/useRoomDoc";
 
@@ -28,10 +29,25 @@ interface Props {
   canSubmit: boolean;
   onRun: (code: string, language: Language) => void;
   onSubmit: (code: string, language: Language) => void;
-  locked: boolean;
 }
 
-export default function CodeEditor({ doc, provider, status, busy, canSubmit, locked, onRun, onSubmit }: Props) {
+// Navy editor background to match the design
+function defineTheme(monaco: Monaco) {
+  monaco.editor.defineTheme("coderoom-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [],
+    colors: {
+      "editor.background": "#222633",
+      "editorGutter.background": "#222633",
+      "editor.lineHighlightBackground": "#2a2f3f",
+      "editorLineNumber.foreground": "#6b7280",
+      "editorLineNumber.activeForeground": "#cbd5e1",
+    },
+  });
+}
+
+export default function CodeEditor({ doc, provider, status, busy, canSubmit, onRun, onSubmit }: Props) {
   const [monacoEditor, setMonacoEditor] = useState<editor.IStandaloneCodeEditor | null>(null);
   const [language, setLanguage] = useState<Language>("python");
 
@@ -126,49 +142,60 @@ export default function CodeEditor({ doc, provider, status, busy, canSubmit, loc
   }
 
   const dot =
-    status === "connected" ? "bg-green-500" : status === "connecting" ? "bg-yellow-500" : "bg-red-500";
+    status === "connected" ? "bg-emerald-500" : status === "connecting" ? "bg-amber-500" : "bg-red-500";
+  const label = status === "connected" ? "Connected" : status === "connecting" ? "Connecting..." : "Disconnected";
 
   return (
-    <div className="h-full flex flex-col border border-gray-800 rounded overflow-hidden">
-      <div className="flex items-center gap-3 px-3 py-2 bg-gray-900 text-xs text-gray-400">
-        <span className={`inline-block w-2 h-2 rounded-full ${dot}`} />
-        <span>{status}</span>
+    <div className="lt-card flex h-full flex-col p-3">
+      <div className="flex flex-wrap items-center gap-3 px-2 pb-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-800">
+          <span className={`h-2.5 w-2.5 rounded-full ${dot}`} /> {label}
+        </span>
 
-        <select
-          value={language}
-          disabled={locked}
-          onChange={(e) => changeLanguage(e.target.value as Language)}
-          className="ml-auto bg-gray-800 border border-gray-700 text-white rounded px-2 py-1"
+        <div className="relative ml-auto">
+          <select
+            value={language}
+            onChange={(e) => changeLanguage(e.target.value as Language)}
+            className="appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-4 pr-9 text-sm font-medium text-slate-800 outline-none focus:border-indigo-400"
+          >
+            <option value="python">Python</option>
+            <option value="cpp">C++</option>
+            <option value="java">Java</option>
+          </select>
+          <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        </div>
+
+        <button
+          disabled={busy || status !== "connected"}
+          onClick={() => onRun(yTextRef.current?.toString() ?? "", language)}
+          className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-50"
         >
-          <option value="python">Python</option>
-          <option value="cpp">C++</option>
-          <option value="java">Java</option>
-        </select>
+          <Play size={14} fill="currentColor" /> {busy ? "Busy..." : "Run"}
+        </button>
 
-       <button
-  disabled={busy || status !== "connected"}
-  onClick={() => onRun(yTextRef.current?.toString() ?? "", language)}
-  className="bg-green-600 hover:bg-green-500 text-white rounded px-3 py-1 disabled:opacity-50"
->
-  {busy ? "Busy..." : "▶ Run"}
-</button>
-
-<button
-  disabled={busy || status !== "connected" || !canSubmit}
-  title={canSubmit ? "Run every test case" : "Waiting for a question"}
-  onClick={() => onSubmit(yTextRef.current?.toString() ?? "", language)}
-  className="bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1 disabled:opacity-50"
->
-  ✓ Submit
-</button>
+        <button
+          disabled={busy || status !== "connected" || !canSubmit}
+          title={canSubmit ? "Run every test case" : "Waiting for a question"}
+          onClick={() => onSubmit(yTextRef.current?.toString() ?? "", language)}
+          className="flex items-center gap-2 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50"
+        >
+          <Check size={15} /> Submit
+        </button>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-2xl">
         <Editor
           height="100%"
-          theme="vs-dark"
+          theme="coderoom-dark"
           defaultLanguage="python"
-          options={{ minimap: { enabled: false }, fontSize: 14, automaticLayout: true, readOnly: locked }}
+          beforeMount={defineTheme}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 15,
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            padding: { top: 16 },
+          }}
           onMount={(ed, monaco) => {
             monacoRef.current = monaco;
             setMonacoEditor(ed);

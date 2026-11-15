@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { Info, RefreshCw, Sparkles, X } from "lucide-react";
 import { api } from "../api";
 
 interface Scorecard {
@@ -17,18 +19,51 @@ interface Scorecard {
 }
 
 function Score({ label, value, note }: { label: string; value: number; note: string }) {
-  const color = value >= 8 ? "bg-green-500" : value >= 5 ? "bg-yellow-500" : "bg-red-500";
+  const color = value >= 8 ? "bg-emerald-500" : value >= 5 ? "bg-amber-500" : "bg-red-500";
+  return (
+    <div className="rounded-2xl bg-white/70 p-4 shadow-sm">
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm font-semibold text-slate-800">{label}</span>
+        <span className="text-lg font-bold text-slate-900">{value}/10</span>
+      </div>
+      <div className="mt-2 h-2 rounded-full bg-slate-200">
+        <div className={`h-2 rounded-full ${color}`} style={{ width: `${value * 10}%` }} />
+      </div>
+      <p className="mt-1.5 text-xs text-slate-500">{note}</p>
+    </div>
+  );
+}
+
+function BulletList({ title, items, titleCls }: { title: string; items: string[]; titleCls: string }) {
   return (
     <div>
-      <div className="flex justify-between text-sm">
-        <span>{label}</span>
-        <span className="font-semibold">{value}/10</span>
-      </div>
-      <div className="h-2 bg-gray-800 rounded mt-1">
-        <div className={`h-2 rounded ${color}`} style={{ width: `${value * 10}%` }} />
-      </div>
-      <p className="text-xs text-gray-500 mt-1">{note}</p>
+      <p className={`mb-1.5 text-sm font-semibold ${titleCls}`}>{title}</p>
+      <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+        {items.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ul>
     </div>
+  );
+}
+
+function PrimaryButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="btn-primary flex items-center gap-2 px-6 py-3 text-sm"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -49,6 +84,15 @@ export default function ScorecardPanel({ slug, onClose }: { slug: string; onClos
     };
   }, [slug]);
 
+  // Close with the Escape key
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   async function generate(regenerate: boolean) {
     setGenerating(true);
     setError("");
@@ -62,72 +106,90 @@ export default function ScorecardPanel({ slug, onClose }: { slug: string; onClos
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-auto p-6 space-y-4">
-        <div className="flex items-center">
-          <h2 className="text-lg font-bold">Interview scorecard</h2>
-          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-white">✕</button>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scorecard-title"
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] w-full max-w-2xl space-y-5 overflow-auto rounded-3xl border border-white/80 p-6 shadow-2xl sm:p-8"
+        style={{ background: "linear-gradient(135deg, #ffffff 45%, #fef3c7 100%)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+            <Sparkles size={26} />
+          </span>
+          <h2 id="scorecard-title" className="text-2xl font-bold text-slate-900">
+            {card ? "Interview scorecard" : "Generate scorecard"}
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:text-slate-900"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        <p className="text-xs text-yellow-300 bg-yellow-950 rounded p-2">
-          AI-generated to assist the interviewer. It is not a hiring decision. Only the pass rate is measured; the other
-          scores are model estimates and can be wrong. The final code was sent to Groq to produce this review.
-        </p>
+        {/* Notice */}
+        <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-slate-700">
+          <Info size={20} className="mt-0.5 shrink-0 text-amber-500" />
+          <p>
+            AI-generated to assist the interviewer. It is not a hiring decision. Only the pass rate is measured; the
+            other scores are model estimates and can be wrong. The final code was sent to Groq to produce this review.
+          </p>
+        </div>
 
-        {loading && <p className="text-gray-400 text-sm">Loading...</p>}
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {loading && <p className="text-sm text-slate-500">Loading...</p>}
+        {error && <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>}
 
+        {/* No scorecard yet */}
         {!loading && !card && (
-          <button
-            disabled={generating}
-            onClick={() => generate(false)}
-            className="bg-blue-600 hover:bg-blue-500 rounded px-4 py-2 disabled:opacity-50"
-          >
-            {generating ? "Generating scorecard..." : "Generate scorecard"}
-          </button>
+          <PrimaryButton onClick={() => generate(false)} disabled={generating}>
+            <Sparkles size={16} /> {generating ? "Generating scorecard..." : "Generate scorecard"}
+          </PrimaryButton>
         )}
 
+        {/* Saved scorecard */}
         {card && (
           <>
-            <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Score label="Correctness" value={card.correctness} note="Measured: best test pass rate" />
               <Score label="Code quality" value={card.codeQuality} note="AI estimate" />
-              <Score label="Efficiency" value={card.efficiency} note={`AI estimate · complexity: ${card.details.time_complexity}`} />
+              <Score
+                label="Efficiency"
+                value={card.efficiency}
+                note={`AI estimate · ${card.details.time_complexity}`}
+              />
             </div>
 
-            <p className="text-sm text-gray-200">{card.details.summary}</p>
+            <p className="text-sm leading-relaxed text-slate-700">{card.details.summary}</p>
 
-            <div className="grid sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="font-semibold text-green-400 mb-1">Strengths</p>
-                <ul className="list-disc ml-5 space-y-1 text-gray-300">
-                  {card.details.strengths.map((s, i) => <li key={i}>{s}</li>)}
-                </ul>
-              </div>
-              <div>
-                <p className="font-semibold text-yellow-400 mb-1">Improvements</p>
-                <ul className="list-disc ml-5 space-y-1 text-gray-300">
-                  {card.details.improvements.map((s, i) => <li key={i}>{s}</li>)}
-                </ul>
-              </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <BulletList title="Strengths" items={card.details.strengths} titleCls="text-emerald-600" />
+              <BulletList title="Improvements" items={card.details.improvements} titleCls="text-amber-600" />
             </div>
 
             {card.details.follow_up_questions.length > 0 && (
-              <div className="text-sm">
-                <p className="font-semibold mb-1">Suggested follow-up questions</p>
-                <ul className="list-disc ml-5 space-y-1 text-gray-300">
-                  {card.details.follow_up_questions.map((s, i) => <li key={i}>{s}</li>)}
-                </ul>
-              </div>
+              <BulletList
+                title="Suggested follow-up questions"
+                items={card.details.follow_up_questions}
+                titleCls="text-slate-800"
+              />
             )}
 
-            <div className="flex items-center text-xs text-gray-500">
+            <div className="flex items-center border-t border-slate-900/5 pt-4 text-xs text-slate-400">
               <span>Model: {card.model}</span>
               <button
                 disabled={generating}
                 onClick={() => generate(true)}
-                className="ml-auto underline hover:text-white disabled:opacity-50"
+                className="ml-auto flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
+                <RefreshCw size={14} className={generating ? "animate-spin" : ""} />
                 {generating ? "Regenerating..." : "Regenerate"}
               </button>
             </div>

@@ -54,12 +54,12 @@ export function GradeView({ g }: { g: GradeOutput }) {
   const allPassed = g.passedCount === g.totalCount;
   return (
     <div className="space-y-2">
-      <p className={`font-semibold ${allPassed ? "text-green-400" : "text-yellow-400"}`}>
+      <p className={`font-semibold ${allPassed ? "text-emerald-600" : "text-amber-600"}`}>
         {g.passedCount}/{g.totalCount} tests passed
       </p>
 
       {g.compileError && (
-        <pre className="text-xs text-red-400 bg-gray-950 rounded p-2 whitespace-pre-wrap">{g.compileError}</pre>
+        <pre className="whitespace-pre-wrap rounded-lg bg-red-50 p-2 text-xs text-red-600">{g.compileError}</pre>
       )}
 
       <ul className="space-y-1">
@@ -69,36 +69,36 @@ export function GradeView({ g }: { g: GradeOutput }) {
           const row = (
             <span className="flex items-center gap-2">
               <span>{ok ? "✅" : t.verdict === "not_run" ? "⏸" : "❌"}</span>
-              <span className="flex-1">{name}</span>
-              <span className={ok ? "text-green-400" : "text-red-400"}>{LABEL[t.verdict]}</span>
-              {t.verdict !== "not_run" && <span className="text-xs text-gray-500">{t.timeMs} ms</span>}
+              <span className="flex-1 text-slate-800">{name}</span>
+              <span className={ok ? "text-emerald-600" : "text-red-600"}>{LABEL[t.verdict]}</span>
+              {t.verdict !== "not_run" && <span className="text-xs text-slate-400">{t.timeMs} ms</span>}
             </span>
           );
 
           // Hidden tests, and visible tests with nothing to show, are a plain row
           if (t.hidden || t.input === undefined) {
             return (
-              <li key={t.index} className="bg-gray-950 rounded px-2 py-1.5 text-xs">
+              <li key={t.index} className="rounded-lg bg-white px-2 py-1.5 text-xs shadow-sm">
                 {row}
               </li>
             );
           }
 
           return (
-            <li key={t.index} className="bg-gray-950 rounded text-xs">
+            <li key={t.index} className="rounded-lg bg-white text-xs shadow-sm">
               <details open={!ok && t.verdict !== "not_run"}>
                 <summary className="cursor-pointer px-2 py-1.5">{row}</summary>
-                <div className="px-2 pb-2 space-y-1 text-gray-300">
-                  <p className="text-gray-500">Input</p>
+                <div className="space-y-1 px-2 pb-2 text-slate-700">
+                  <p className="text-slate-400">Input</p>
                   <pre className="whitespace-pre-wrap">{t.input.trimEnd()}</pre>
-                  <p className="text-gray-500">Expected</p>
+                  <p className="text-slate-400">Expected</p>
                   <pre className="whitespace-pre-wrap">{t.expected}</pre>
-                  <p className="text-gray-500">Your output</p>
+                  <p className="text-slate-400">Your output</p>
                   <pre className="whitespace-pre-wrap">{t.actual || "(nothing)"}</pre>
                   {t.stderr && (
                     <>
-                      <p className="text-gray-500">Errors</p>
-                      <pre className="whitespace-pre-wrap text-red-400">{t.stderr}</pre>
+                      <p className="text-slate-400">Errors</p>
+                      <pre className="whitespace-pre-wrap text-red-600">{t.stderr}</pre>
                     </>
                   )}
                 </div>
@@ -120,30 +120,37 @@ interface Props {
 
 export default function OutputPanel({ output, runningLabel, stdin, onStdinChange }: Props) {
   return (
-    <aside className="h-full flex flex-col border border-gray-800 rounded bg-gray-900 overflow-hidden">
-      <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-800">Input (stdin), shared</div>
-      <textarea
-        value={stdin}
-        onChange={(e) => onStdinChange(e.target.value)}
-        placeholder="Optional input for your program"
-        className="h-24 resize-none bg-gray-950 p-3 text-sm text-gray-200 outline-none border-b border-gray-800"
-      />
-      <div className="px-3 py-2 text-xs text-gray-400 border-b border-gray-800">
-        {output?.kind === "grade" && !runningLabel ? "Test results" : "Output"}
-        {output?.by && !runningLabel ? ` · by ${output.by}` : ""}
+    <aside className="lt-card flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 p-4">
+        <p className="mb-2 text-sm font-semibold text-slate-900">Input (stdin), shared</p>
+        <textarea
+          value={stdin}
+          onChange={(e) => onStdinChange(e.target.value)}
+          placeholder="Optional input for your program"
+          className="h-[clamp(5rem,16vh,8rem)] w-full resize-none rounded-xl bg-slate-100/80 p-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:ring-4 focus:ring-indigo-100"
+        />
       </div>
-      <div className="flex-1 overflow-auto p-3 text-sm">
-        {runningLabel ? (
-          <p className="text-gray-300">{runningLabel}</p>
-        ) : !output ? (
-          <p className="text-gray-500">Click Run to execute your code, or Submit to run all tests.</p>
-        ) : output.kind === "grade" ? (
-          <GradeView g={output} />
-        ) : (
-          <pre className={`whitespace-pre-wrap ${output.isError ? "text-red-400" : "text-gray-200"}`}>
-            {output.text}
-          </pre>
-        )}
+
+      <div className="flex min-h-0 flex-1 flex-col border-t border-slate-900/5 p-4">
+        <p className="mb-2 text-sm font-semibold text-slate-900">
+          {output?.kind === "grade" && !runningLabel ? "Test results" : "Output"}
+          {output?.by && !runningLabel ? (
+            <span className="font-normal text-slate-400"> · by {output.by}</span>
+          ) : null}
+        </p>
+        <div className="min-h-0 flex-1 overflow-auto rounded-xl bg-slate-100/80 p-3 text-sm">
+          {runningLabel ? (
+            <p className="text-slate-600">{runningLabel}</p>
+          ) : !output ? (
+            <p className="text-slate-400">Click Run to execute your code, or Submit to run all tests.</p>
+          ) : output.kind === "grade" ? (
+            <GradeView g={output} />
+          ) : (
+            <pre className={`whitespace-pre-wrap ${output.isError ? "text-red-600" : "text-slate-800"}`}>
+              {output.text}
+            </pre>
+          )}
+        </div>
       </div>
     </aside>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, Code, Copy, Power } from "lucide-react";
 import { api, getUser } from "../api";
 import CodeEditor from "../components/CodeEditor";
 import type { Language } from "../components/CodeEditor";
@@ -7,7 +8,6 @@ import QuestionPanel from "../components/QuestionPanel";
 import OutputPanel from "../components/OutputPanel";
 import type { SharedOutput, GradeOutput } from "../components/OutputPanel";
 import { useRoomDoc } from "../hooks/useRoomDoc";
-import ScorecardPanel from "../components/ScorecardPanel";
 
 interface RoomData {
   slug: string;
@@ -50,7 +50,6 @@ export default function Room() {
   const navigate = useNavigate();
   const [room, setRoom] = useState<RoomData | null>(null);
   const { doc, provider, status } = useRoomDoc(slug, room?.status !== "ended");
-  const [showScore, setShowScore] = useState(false);
   const [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -185,49 +184,47 @@ export default function Room() {
     }
   }
 
-
   async function endInterview() {
-  if (!doc) return;
-  if (!window.confirm("End this interview? Nobody will be able to run or submit code afterwards.")) return;
-  const finalCode = doc.getText("code").toString();
-  const language = doc.getMap<string>("meta").get("language") ?? "python";
-  try {
-    await api(`/rooms/${slug}/end`, { method: "POST", body: JSON.stringify({ finalCode, language }) });
-    navigate(`/dashboard/${slug}`);
-  } catch (err) {
-    window.alert((err as Error).message);
+    if (!doc) return;
+    if (!window.confirm("End this interview? Nobody will be able to run or submit code afterwards.")) return;
+    const finalCode = doc.getText("code").toString();
+    const language = doc.getMap<string>("meta").get("language") ?? "python";
+    try {
+      await api(`/rooms/${slug}/end`, { method: "POST", body: JSON.stringify({ finalCode, language }) });
+      navigate(`/dashboard/${slug}`);
+    } catch (err) {
+      window.alert((err as Error).message);
+    }
   }
-}
 
   function copyCode() {
-    navigator.clipboard.writeText(room!.slug);
+    navigator.clipboard.writeText(slug);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
-  if (error) return <div className="p-8 text-red-400">{error}</div>;
-  if (!room) return <div className="p-8 text-gray-400">Loading...</div>;
-
+  if (error) return <div className="lt-bg p-8 text-red-600">{error}</div>;
+  if (!room) return <div className="lt-bg p-8 text-slate-500">Loading...</div>;
 
   if (room.status === "ended") {
-  const mine = getUser()?.id === room.interviewer.id;
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-4">
-        <h1 className="text-2xl font-bold">This interview has ended</h1>
-        <p className="text-gray-400">
-          {mine ? "The code, results and scorecard are saved in your dashboard." : "Thank you for taking part!"}
-        </p>
-        <Link
-          to={mine ? `/dashboard/${room.slug}` : "/"}
-          className="inline-block bg-blue-600 hover:bg-blue-500 rounded px-4 py-2"
-        >
-          {mine ? "View report" : "Back to home"}
-        </Link>
+    const mine = getUser()?.id === room.interviewer.id;
+    return (
+      <div className="lt-bg flex items-center justify-center p-6">
+        <div className="lt-card max-w-md space-y-4 p-10 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">This interview has ended</h1>
+          <p className="text-slate-500">
+            {mine ? "The code, results and scorecard are saved in your dashboard." : "Thank you for taking part!"}
+          </p>
+          <Link
+            to={mine ? `/dashboard/${room.slug}` : "/"}
+            className="btn-dark inline-block px-6 py-3"
+          >
+            {mine ? "View report" : "Back to home"}
+          </Link>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   // A busy flag expires, in case the person who set it closed their tab. Grading gets longer.
   const ttl = runInfo?.what === "grading" ? 120_000 : 40_000;
@@ -235,63 +232,89 @@ export default function Room() {
     runInfo && (now || runInfo.at) - runInfo.at < ttl
       ? `${runInfo.name} is ${runInfo.what === "grading" ? "grading" : "running"}...`
       : null;
-  const ended = room.status === "ended";
   const isInterviewer = getUser()?.id === room.interviewer.id;
-  const busy = running || runningLabel !== null || ended;
+  const busy = running || runningLabel !== null;
+
   return (
-    <div className="h-screen flex flex-col bg-gray-950 text-white">
-      <header className="flex items-center gap-4 px-4 py-2 border-b border-gray-800 text-sm">
-        <Link to="/" className="text-gray-400 underline">← Back</Link>
-        <span className="font-semibold">Room {room.slug}</span>
-        <button onClick={copyCode} className="text-xs border border-gray-700 rounded px-2 py-0.5 hover:bg-gray-800">
+    <div className="lt-bg flex h-dvh flex-col overflow-hidden">
+      {/* Logo row */}
+      <div className="flex shrink-0 items-center px-6 pt-3">
+        <Link to="/" className="flex items-center gap-3">
+          <span className="btn-primary flex h-9 w-9 items-center justify-center">
+            <Code size={18} />
+          </span>
+          <span className="text-lg font-bold text-slate-900">CodeRoom</span>
+        </Link>
+      </div>
+
+      {/* Room header */}
+      <header className="lt-card mx-3 mt-2 flex shrink-0 flex-wrap items-center gap-3 px-4 py-2.5">
+        <Link to="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
+          <ArrowLeft size={16} /> Back
+        </Link>
+        <span className="text-lg font-bold text-slate-900">Room {room.slug}</span>
+
+        <button onClick={copyCode} className="lt-pill flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-slate-800 hover:bg-white">
+          {copied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
           {copied ? "Copied!" : "Copy code"}
         </button>
-        <span className={room.status === "live" ? "text-green-400" : "text-yellow-400"}>● {room.status}</span>
-        {isInterviewer && !ended && (
-  <button onClick={endInterview} className="text-xs bg-red-700 hover:bg-red-600 rounded px-2 py-0.5">
-    End interview
-  </button>
-  )}
-  {isInterviewer && ended && (
-  <button onClick={() => setShowScore(true)} className="text-xs bg-blue-600 hover:bg-blue-500 rounded px-2 py-0.5">
-    Scorecard
-  </button>
-  )}
-        <span className="ml-auto text-gray-400">
-          Interviewer: {room.interviewer.name} · Candidate: {room.candidate ? room.candidate.name : "waiting..."}
+
+        <span
+          className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium ${
+            room.status === "live" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          <span className={`h-2 w-2 rounded-full ${room.status === "live" ? "bg-emerald-500" : "bg-amber-500"}`} />
+          {room.status === "live" ? "Live" : "Waiting"}
         </span>
-        {ended && (
-      <div className="px-4 py-1.5 text-sm bg-yellow-950 text-yellow-200 border-b border-yellow-900">
-        {isInterviewer ? "This interview has ended." : "This interview has ended. Thank you for taking part!"}
-      </div>
-)}
+
+        {isInterviewer && (
+          <button
+            onClick={endInterview}
+            className="flex items-center gap-2 rounded-full bg-red-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-red-600"
+          >
+            <Power size={15} /> End Interview
+          </button>
+        )}
+
+        <span className="ml-auto text-sm text-slate-500">
+          Interviewer: <span className="font-medium text-slate-800">{room.interviewer.name}</span>
+          <span className="mx-2">·</span>
+          Candidate:{" "}
+          <span className="font-semibold text-slate-900">{room.candidate ? room.candidate.name : "waiting..."}</span>
+        </span>
       </header>
 
-      <div className="flex-1 min-h-0 grid grid-cols-[260px_1fr_320px] gap-3 p-3">
-        <QuestionPanel
-          slug={room.slug}
-          questionId={room.questionId}
-          isInterviewer={isInterviewer && !ended}
-          onChanged={(id) => setRoom((r) => (r ? { ...r, questionId: id } : r))}
-        />
-        <CodeEditor
-          doc={doc}
-          provider={provider}
-          status={status}
-          busy={busy}
-          canSubmit={room.questionId !== null}
-          locked={ended}
-          onRun={handleRun}
-          onSubmit={handleSubmit}
-        />
-        <OutputPanel
-          output={output}
-          runningLabel={runningLabel}
-          stdin={stdin}
-          onStdinChange={handleStdinChange}
-        />
+      {/* Three panels */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(260px,320px)] lg:overflow-hidden">
+        <div className="min-h-64 lg:min-h-0">
+          <QuestionPanel
+            slug={room.slug}
+            questionId={room.questionId}
+            isInterviewer={isInterviewer}
+            onChanged={(id) => setRoom((r) => (r ? { ...r, questionId: id } : r))}
+          />
+        </div>
+        <div className="min-h-112 lg:min-h-0">
+          <CodeEditor
+            doc={doc}
+            provider={provider}
+            status={status}
+            busy={busy}
+            canSubmit={room.questionId !== null}
+            onRun={handleRun}
+            onSubmit={handleSubmit}
+          />
+        </div>
+        <div className="min-h-80 lg:min-h-0">
+          <OutputPanel
+            output={output}
+            runningLabel={runningLabel}
+            stdin={stdin}
+            onStdinChange={handleStdinChange}
+          />
+        </div>
       </div>
-      {showScore && isInterviewer && <ScorecardPanel slug={room.slug} onClose={() => setShowScore(false)} />}
     </div>
   );
 }
