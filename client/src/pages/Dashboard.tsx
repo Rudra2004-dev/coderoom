@@ -102,7 +102,7 @@ export default function Dashboard() {
 
         {shown.length > 0 && (
           <div className="lt-card overflow-x-auto p-2">
-            <table className="w-full min-w-[56rem] text-left text-sm">
+            <table className="w-full min-w-4xl text-left text-sm">
               <thead>
                 <tr className="text-slate-500">
                   <th className="px-4 py-4 font-semibold">Candidate</th>
