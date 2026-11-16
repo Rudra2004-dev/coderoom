@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { ArrowLeft, User } from "lucide-react";
 import { api, getUser } from "../api";
 import Navbar from "../components/Navbar";
 
@@ -17,17 +18,29 @@ interface Row {
   scorecard: { correctness: number; codeQuality: number; efficiency: number } | null;
 }
 
-const statusStyle: Record<Row["status"], string> = {
-  waiting: "bg-gray-800 text-gray-300",
-  live: "bg-green-900 text-green-300",
-  ended: "bg-blue-900 text-blue-300",
+const STATUS: Record<Row["status"], { label: string; cls: string }> = {
+  waiting: { label: "Waiting", cls: "bg-slate-200 text-slate-600" },
+  live: { label: "Live", cls: "bg-emerald-100 text-emerald-700" },
+  ended: { label: "Ended", cls: "bg-sky-100 text-sky-700" },
 };
+
+const DIFFICULTY: Record<string, string> = {
+  Easy: "bg-emerald-100 text-emerald-700",
+  Medium: "bg-amber-100 text-amber-700",
+  Hard: "bg-red-100 text-red-700",
+};
+
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "open", label: "In progress" },
+  { key: "ended", label: "Ended" },
+] as const;
 
 export default function Dashboard() {
   const role = getUser()?.role;
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<"all" | "open" | "ended">("all");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
 
   useEffect(() => {
     if (role !== "interviewer") return;
@@ -47,86 +60,153 @@ export default function Dashboard() {
   );
 
   return (
-    <>
-    <Navbar />
-    <div className="min-h-[calc(100vh-3.5rem)] bg-gray-950 text-white p-8">
-    <div className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="text-gray-400 underline text-sm">← Home</Link>
-          <h1 className="text-2xl font-bold">My interviews</h1>
-          <div className="ml-auto flex gap-1 text-xs">
-            {(["all", "open", "ended"] as const).map((f) => (
+    <div className="lt-bg">
+      <Navbar variant="light" />
+
+      <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+        {/* Title row with filters */}
+        <div className="flex flex-wrap items-center gap-4">
+          <Link
+            to="/"
+            className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-slate-700 hover:bg-white/70"
+          >
+            <ArrowLeft size={16} /> Home
+          </Link>
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+            My <span className="serif-italic text-[1.12em]">interviews</span>
+          </h1>
+
+          <div className="ml-auto flex gap-2">
+            {FILTERS.map((f) => (
               <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`rounded px-3 py-1 border ${
-                  filter === f ? "bg-blue-600 border-blue-600" : "border-gray-700 hover:bg-gray-800"
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                aria-pressed={filter === f.key}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  filter === f.key
+                    ? "btn-primary"
+                    : "lt-pill text-slate-800 hover:bg-white"
                 }`}
               >
-                {f === "all" ? "All" : f === "open" ? "In progress" : "Ended"}
+                {f.label}
               </button>
             ))}
           </div>
         </div>
-      </div>
-      
 
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-        {!rows && !error && <p className="text-gray-400 text-sm">Loading...</p>}
-        {rows && shown.length === 0 && <p className="text-gray-500 text-sm">No interviews to show.</p>}
+        {error && <p className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</p>}
+        {!rows && !error && <p className="text-sm text-slate-500">Loading...</p>}
+        {rows && shown.length === 0 && (
+          <p className="lt-card p-8 text-center text-slate-500">No interviews to show.</p>
+        )}
 
         {shown.length > 0 && (
-          <div className="overflow-x-auto border border-gray-800 rounded">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-900 text-gray-400 text-left text-xs">
-                <tr>
-                  <th className="px-3 py-2">Candidate</th>
-                  <th className="px-3 py-2">Question</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Best result</th>
-                  <th className="px-3 py-2" title="correctness · code quality · efficiency">Scores</th>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2"></th>
+          <div className="lt-card overflow-x-auto p-2">
+            <table className="w-full min-w-[56rem] text-left text-sm">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="px-4 py-4 font-semibold">Candidate</th>
+                  <th className="px-4 py-4 font-semibold">Question</th>
+                  <th className="px-4 py-4 font-semibold">Status</th>
+                  <th className="px-4 py-4 font-semibold">Best result</th>
+                  <th className="px-4 py-4 font-semibold" title="correctness · code quality · efficiency">
+                    Scores
+                  </th>
+                  <th className="px-4 py-4 font-semibold">Date</th>
+                  <th className="px-4 py-4" />
                 </tr>
               </thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={r.slug} className="border-t border-gray-800 hover:bg-gray-900">
-                    <td className="px-3 py-2">{r.candidate ?? <span className="text-gray-500">not joined</span>}</td>
-                    <td className="px-3 py-2">
-                      {r.question ?? <span className="text-gray-500">none</span>}
-                      {r.difficulty && <span className="ml-2 text-xs text-gray-500">{r.difficulty}</span>}
+                  <tr key={r.slug} className="border-t border-slate-900/5 hover:bg-white/60">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                            r.candidate ? "bg-violet-100 font-bold text-indigo-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          {r.candidate ? r.candidate[0].toUpperCase() : <User size={18} />}
+                        </span>
+                        <span className={r.candidate ? "font-semibold text-slate-900" : "text-slate-400"}>
+                          {r.candidate ?? "not joined"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-3 py-2">
-                      <span className={`text-xs rounded px-2 py-0.5 ${statusStyle[r.status]}`}>{r.status}</span>
+
+                    <td className="px-4 py-3">
+                      {r.question ? (
+                        <span className="flex items-center gap-2 font-semibold text-slate-900">
+                          {r.question}
+                          {r.difficulty && (
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                DIFFICULTY[r.difficulty] ?? "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {r.difficulty}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">none</span>
+                      )}
                     </td>
-                    <td className="px-3 py-2">
+
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-3.5 py-1 text-xs font-semibold ${STATUS[r.status].cls}`}>
+                        {STATUS[r.status].label}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3">
                       {r.best ? (
                         <>
-                          <span className={r.best.passed === r.best.total ? "text-green-400" : "text-yellow-400"}>
+                          <span
+                            className={`font-bold ${
+                              r.best.passed === r.best.total ? "text-emerald-600" : "text-amber-500"
+                            }`}
+                          >
                             {r.best.passed}/{r.best.total}
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {" "}· {r.attempts} attempt{r.attempts === 1 ? "" : "s"}
+                          <span className="text-slate-500">
+                            {" "}
+                            · {r.attempts} attempt{r.attempts === 1 ? "" : "s"}
                             {r.minutes ? ` · ${r.minutes} min` : ""}
                           </span>
                         </>
                       ) : (
-                        <span className="text-gray-500">no submissions</span>
+                        <span className="text-slate-500">no submissions</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-300">
-                      {r.scorecard
-                        ? `${r.scorecard.correctness} · ${r.scorecard.codeQuality} · ${r.scorecard.efficiency}`
-                        : <span className="text-gray-600">n/a</span>}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-400">{new Date(r.createdAt).toLocaleString()}</td>
-                    <td className="px-3 py-2 text-right">
-                      {r.status === "ended" ? (
-                        <Link to={`/dashboard/${r.slug}`} className="text-blue-400 hover:underline">Review</Link>
+
+                    <td className="px-4 py-3">
+                      {r.scorecard ? (
+                        <span className="font-bold text-slate-900">
+                          {r.scorecard.correctness} · {r.scorecard.codeQuality} · {r.scorecard.efficiency}
+                        </span>
                       ) : (
-                        <Link to={`/room/${r.slug}`} className="text-green-400 hover:underline">Open room</Link>
+                        <span className="text-slate-400">n/a</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 text-slate-500">{new Date(r.createdAt).toLocaleString()}</td>
+
+                    <td className="px-4 py-3 text-right">
+                      {r.status === "ended" ? (
+                        <Link
+                          to={`/dashboard/${r.slug}`}
+                          className="inline-block rounded-xl bg-violet-100 px-5 py-2 text-sm font-semibold text-indigo-700 hover:bg-violet-200"
+                        >
+                          Review
+                        </Link>
+                      ) : (
+                        <Link
+                          to={`/room/${r.slug}`}
+                          className="inline-block rounded-xl bg-emerald-100 px-5 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-200"
+                        >
+                          Open room
+                        </Link>
                       )}
                     </td>
                   </tr>
@@ -135,8 +215,7 @@ export default function Dashboard() {
             </table>
           </div>
         )}
-      </div>
+      </main>
     </div>
-    </>
   );
 }
