@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { env } from "../env";
 
 export interface AuthedRequest extends Request {
   user?: { id: string; role: "interviewer" | "candidate" };
@@ -9,7 +10,7 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) return res.status(401).json({ error: "Missing token" });
   try {
-    const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET!) as any;
+    const payload = jwt.verify(header.slice(7), env.JWT_SECRET) as { id: string; role: "interviewer" | "candidate" };
     req.user = { id: payload.id, role: payload.role };
     next();
   } catch {

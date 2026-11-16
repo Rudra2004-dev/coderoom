@@ -9,15 +9,16 @@ import { env } from "../env";
 const router = Router();
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(1),
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(200),
+  name: z.string().min(1).max(100),
   role: z.enum(["interviewer", "candidate"]),
   inviteCode: z.string().max(100).optional(),
 });
 
+
 const sign = (u: { id: string; role: string }) =>
-  jwt.sign({ id: u.id, role: u.role }, process.env.JWT_SECRET!, { expiresIn: "7d" });
+  jwt.sign({ id: u.id, role: u.role }, env.JWT_SECRET!, { expiresIn: "7d" });
 
 
 // Compare secrets without leaking where they differ

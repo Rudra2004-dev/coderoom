@@ -37,13 +37,3 @@ process.on("SIGINT", async () => {
 });
 
 console.log(`Worker ready (concurrency ${concurrency}), waiting for jobs...`);
-worker.on("failed", (job, err) => console.error(`[job ${job?.id}] failed:`, err.message));
-worker.on("error", (err) => console.error("worker error:", err.message));
-
-// Finish the current job before exiting on Ctrl+C
-process.on("SIGINT", async () => {
-  await worker.close();
-  process.exit(0);
-});
-
-console.log("Worker ready, waiting for jobs...");
