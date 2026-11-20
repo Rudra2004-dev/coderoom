@@ -144,10 +144,15 @@ leaks, security headers and WebSocket authorization: **38 of 38 passing**. See
 
 ## Performance
 
-Burst benchmark: all jobs submitted at once, one warm-up run excluded. Machine: <<CPU, RAM, Windows + Docker Desktop>>.
+Burst benchmark: all jobs submitted at once, one warm-up run excluded. Machine: Intel Core i5-13420H (8 cores / 12 threads), 16 GB RAM, Windows + Docker Desktop, worker concurrency 2
 Measured with [`worker/tests/load.ts`](worker/tests/load.ts).
 
-<<paste the table from worker/tests/BENCHMARK.md>>
+| Language | Jobs | Worker concurrency | Avg (ms) | P50 (ms) | P95 (ms) | Max (ms) | Jobs/sec | Failures |
+|---|---|---|---|---|---|---|---|---|
+| python | 30 | 2 | 4519 | 4396 | 8683 | 8707 | 3.45 | 0 |
+| cpp | 20 | 2 | 4233 | 3826 | 7733 | 7739 | 2.58 | 0 |
+| java | 20 | 2 | 7691 | 7374 | 13432 | 13627 | 1.47 | 0 |
+
 
 Most of the latency for small programs is container startup, since every run uses a fresh container. A warm pool of
 pre-started containers is the next optimization.
@@ -157,7 +162,7 @@ pre-started containers is the next optimization.
 Requirements: Node 20+ and Docker (Docker Desktop on Windows or macOS).
 
 ```bash
-git clone <<repo url>>
+git clone https://github.com/Rudra2004-dev/coderoom.git 
 cd coderoom
 
 # PostgreSQL on port 5433, Redis on port 6379
