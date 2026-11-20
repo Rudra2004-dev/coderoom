@@ -1,19 +1,36 @@
 name: ci
+
 on: [push, pull_request]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: cd client && npm ci && npm run lint && npm run build
-      - name: Build and type-check server
-  env:
-    DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coderoom
-  run: |
-    cd server
-    npm ci
-    npx prisma generate
-    npx tsc --noEmit
-      - run: cd worker && npm ci && npx tsc --noEmit
+        with:
+          node-version: 20
+
+      - name: Lint and build client
+        working-directory: client
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
+      - name: Generate Prisma client and type-check server
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coderoom
+        run: |
+          npm ci
+          npx prisma generate
+          npx tsc --noEmit -p tsconfig.json
+
+      - name: Type-check worker
+        working-directory: worker
+        run: |
+          npm ci
+          npx tsc --noEmit
