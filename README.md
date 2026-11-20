@@ -4,9 +4,10 @@ A live technical interview platform. An interviewer and a candidate share a real
 isolated Docker sandboxes (Python, C++, Java), get automatic grading against hidden test cases, and the interviewer
 receives an AI-assisted scorecard.
 
-![CodeRoom demo](docs/demo.gif)
+## 🎬 CodeRoom Demo
 
-**Video (2 min):** <<YouTube or Drive link>> · **Live demo:** <<https://your-link, or delete this line>>
+[▶ Watch CodeRoom Demo](docs/demo.mp4)
+
 
 ## Why I built it
 
