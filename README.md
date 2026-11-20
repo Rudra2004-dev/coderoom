@@ -26,9 +26,15 @@ where it didn't.
 
 ## Screenshots
 
-| Live interview | Grading | Scorecard | Dashboard |
-|---|---|---|---|
-| ![room](docs/room.png) | ![grading](docs/grading.png) | ![scorecard](docs/scorecard.png) | ![dashboard](docs/dashboard.png) |
+
+| Live Interview | Grading |
+|:---:|:---:|
+| ![room](docs/room.png) | ![grading](docs/grading.png) |
+
+| Scorecard | Dashboard |
+|:---:|:---:|
+| ![scorecard](docs/scorecard.png) | ![dashboard](docs/dashboard.png) |
+
 
 ## Architecture
 
