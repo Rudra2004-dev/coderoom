@@ -6,7 +6,7 @@ receives an AI-assisted scorecard.
 
 ## 🎬 CodeRoom Demo
 
-[▶ Watch CodeRoom Demo](docs/demo.mp4)
+https://github.com/user-attachments/assets/a521fc48-b4a2-48f1-ac1f-46ffa46ca79c
 
 
 ## Why I built it
