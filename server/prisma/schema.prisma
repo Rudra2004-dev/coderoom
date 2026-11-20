@@ -27,6 +27,7 @@ model User {
   createdAt    DateTime @default(now())
   hostedRooms  Room[]   @relation("Interviewer")
   joinedRooms  Room[]   @relation("Candidate")
+  submissions  Submission[]
 }
 
 model Room {
@@ -84,6 +85,7 @@ model Submission {
   totalCount  Int
   createdAt   DateTime @default(now())
   room        Room     @relation(fields: [roomId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 

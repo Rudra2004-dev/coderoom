@@ -1,5 +1,7 @@
 # CodeRoom
 
+[![ci](https://github.com/Rudra2004-dev/coderoom/actions/workflows/ci.yml/badge.svg)](https://github.com/Rudra2004-dev/coderoom/actions/workflows/ci.yml)
+
 A live technical interview platform. An interviewer and a candidate share a real-time code editor, run code in
 isolated Docker sandboxes (Python, C++, Java), get automatic grading against hidden test cases, and the interviewer
 receives an AI-assisted scorecard.
@@ -8,6 +10,24 @@ receives an AI-assisted scorecard.
 
 https://github.com/user-attachments/assets/a521fc48-b4a2-48f1-ac1f-46ffa46ca79c
 
+## What this project demonstrates
+
+- **Running untrusted code safely.** Python, C++ and Java run in locked-down Docker containers (no network, read-only filesystem, memory/CPU/process limits, host-enforced timeouts). An automated suite of 31 scenarios, including fork bombs, memory hogs, output floods and network access, passes with no leftover containers: [`RESULTS.md`](worker/tests/RESULTS.md).
+- **Real-time collaboration and a job pipeline.** A shared editor built on Yjs (CRDT) over authenticated WebSockets, plus a BullMQ/Redis worker pool that grades submissions in parallel, with measured throughput in the [Performance](#performance) section.
+- **Security as a design constraint, not an afterthought.** Per-room authorization on REST and WebSocket, hidden test data that never leaves the server, and 38 automated access-control checks: [`SECURITY.md`](server/tests/SECURITY.md).
+- **Using AI without trusting it.** The scorecard's correctness number is computed from test results, model output is schema-validated, and the candidate's code is treated as untrusted input to defend against prompt injection.
+- **Honest engineering.** Known limitations and future work are documented, including what Docker isolation does not protect against.
+
+## Key numbers
+
+| Area | Result |
+|---|---|
+| Sandbox abuse suite | **31 scenarios** (27 attacks + 4 controls) across 3 languages, **31/31 contained**, 0 leftover containers |
+| Access-control suite | **38 checks** (authentication, roles, IDOR, validation, hidden-test leaks, WebSocket), **38/38 passing** |
+| Grading load test | **70 burst jobs** across 3 languages, **0 failures** |
+| Peak throughput | **3.45 jobs/sec** (Python) and **2.58 jobs/sec** (C++) on 2 workers; 1.47 jobs/sec for Java |
+| Languages and content | **3 languages**, **5 questions**, **30 test cases** (visible and hidden) |
+| Limits per run | 64 KB output cap, 5 to 7 s run limit, separate compile limit, 128 to 512 MB memory |
 
 ## Why I built it
 
@@ -27,7 +47,6 @@ where it didn't.
 
 ## Screenshots
 
-
 | Live Interview | Grading |
 |:---:|:---:|
 | ![room](docs/room.png) | ![grading](docs/grading.png) |
@@ -35,7 +54,6 @@ where it didn't.
 | Scorecard | Dashboard |
 |:---:|:---:|
 | ![scorecard](docs/scorecard.png) | ![dashboard](docs/dashboard.png) |
-
 
 ## Architecture
 
@@ -73,6 +91,7 @@ an interview from ending.
 | Queue and workers | BullMQ, Docker |
 | AI | Groq (OpenAI-compatible API), default model `openai/gpt-oss-20b` (set with `GROQ_MODEL`) |
 | Auth | JWT, bcrypt, role checks, optional invite code for interviewer accounts |
+| CI | GitHub Actions: client lint and build, server and worker type-checks |
 
 ## Security model
 
@@ -144,7 +163,7 @@ leaks, security headers and WebSocket authorization: **38 of 38 passing**. See
 
 ## Performance
 
-Burst benchmark: all jobs submitted at once, one warm-up run excluded. Machine: Intel Core i5-13420H (8 cores / 12 threads), 16 GB RAM, Windows + Docker Desktop, worker concurrency 2
+Burst benchmark: all jobs submitted at once, one warm-up run excluded. Machine: Intel Core i5-13420H (8 cores / 12 threads), 16 GB RAM, Windows + Docker Desktop, worker concurrency 2.
 Measured with [`worker/tests/load.ts`](worker/tests/load.ts).
 
 | Language | Jobs | Worker concurrency | Avg (ms) | P50 (ms) | P95 (ms) | Max (ms) | Jobs/sec | Failures |
@@ -153,16 +172,14 @@ Measured with [`worker/tests/load.ts`](worker/tests/load.ts).
 | cpp | 20 | 2 | 4233 | 3826 | 7733 | 7739 | 2.58 | 0 |
 | java | 20 | 2 | 7691 | 7374 | 13432 | 13627 | 1.47 | 0 |
 
-
-Most of the latency for small programs is container startup, since every run uses a fresh container. A warm pool of
-pre-started containers is the next optimization.
+Latency includes queue wait: 20 to 30 jobs share 2 workers, so a single uncontended run is much faster (about 0.5 s for Python and 1.5 s for Java in [`worker/tests/RESULTS.md`](worker/tests/RESULTS.md)). Most of that single-run time is container startup, since every run uses a fresh container. A warm pool of pre-started containers is the next optimization.
 
 ## Run it locally
 
 Requirements: Node 20+ and Docker (Docker Desktop on Windows or macOS).
 
 ```bash
-git clone https://github.com/Rudra2004-dev/coderoom.git 
+git clone https://github.com/Rudra2004-dev/coderoom.git
 cd coderoom
 
 # PostgreSQL on port 5433, Redis on port 6379
@@ -199,6 +216,8 @@ Generate a secret: `node -e "console.log(require('crypto').randomBytes(48).toStr
 | `GROQ_API_KEY` | Optional. Without it everything works except scorecards |
 | `GROQ_MODEL` | Optional. Default `openai/gpt-oss-20b` |
 | `INTERVIEWER_INVITE_CODE` | Optional. Leave unset (see Known limitations) |
+
+The worker reads `WORKER_CONCURRENCY` (default `2`) to decide how many sandbox containers run at once.
 
 Then register one **interviewer** account in a normal window and one **candidate** account in a private window. The
 interviewer creates a room and shares the code, and the candidate pastes it on their home page.
