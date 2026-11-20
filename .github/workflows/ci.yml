@@ -8,5 +8,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: cd client && npm ci && npm run lint && npm run build
-      - run: cd server && npm ci && npx prisma generate && npx tsc --noEmit
+      - name: Build and type-check server
+  env:
+    DATABASE_URL: postgresql://postgres:postgres@localhost:5432/coderoom
+  run: |
+    cd server
+    npm ci
+    npx prisma generate
+    npx tsc --noEmit
       - run: cd worker && npm ci && npx tsc --noEmit
